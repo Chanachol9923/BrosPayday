@@ -445,7 +445,8 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 
 .settle-qr { color: var(--text-faint); display: grid; flex-shrink: 0; }
 .settle-row.done .tick { background: var(--pos); border-color: var(--pos); color: #06210f; opacity: 1; }
-.tick:disabled { opacity: 0.5; }
+.tick:disabled { opacity: 0.4; }
+.tick:disabled:hover { border-color: var(--border-strong); }
 
 /* what has actually changed hands, and what that leaves */
 .settle-was {
@@ -1017,6 +1018,23 @@ table.grid .cellname { display: flex; align-items: center; gap: 7px; }
 }
 .menu button:hover { background: var(--surface-3); }
 .menu button.danger { color: var(--neg); }
+
+/*
+ * The two people actually reach for. Everything else in here is occasional, so
+ * these get a tinted slab rather than blending into a list of equals.
+ */
+.menu button.feature {
+  background: var(--accent-dim);
+  border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+  color: var(--text);
+  font-weight: 680;
+}
+.menu button.feature:hover {
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  border-color: var(--accent);
+}
+.menu button.feature svg { color: var(--accent); }
+.menu button.feature + button.feature { margin-top: 5px; }
 .menu .sep { height: 1px; background: var(--border); margin: 5px 4px; }
 .menu-scrim { position: fixed; inset: 0; z-index: 50; }
 
@@ -1029,6 +1047,43 @@ table.grid .cellname { display: flex; align-items: center; gap: 7px; }
   font-size: 13.5px;
   font-weight: 620;
 }
+
+/*
+ * Anything readonly must look it. Half the point of letting someone open a
+ * shared event is that they can see it; the other half is that they can see,
+ * straight away, that it is not theirs to change.
+ */
+input[readonly] { color: var(--text-dim); cursor: default; }
+input[readonly]::placeholder { color: var(--text-faint); }
+.field[readonly]:focus,
+.amount-input[readonly]:focus,
+.pname[readonly]:focus { border-color: var(--border-strong); background: var(--surface-2); }
+.amount-wrap:focus-within:has(.amount-input[readonly]) { border-color: var(--border-strong); }
+.own-field:has(.own-input[readonly]):focus-within,
+.repaid-wrap:has(.repaid-input[readonly]):focus-within { border-color: var(--border-strong); background: var(--surface); }
+.pick:disabled { cursor: default; }
+.pick:disabled:hover { border-color: var(--border-strong); }
+
+/* The notice at the top of a sheet somebody can read but not edit. */
+.look-only {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 15px;
+  padding: 10px 12px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  border: 1px solid var(--border-strong);
+}
+.look-only.can-unlock {
+  background: var(--accent-dim);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.look-only-icon { display: grid; flex-shrink: 0; color: var(--text-faint); }
+.look-only.can-unlock .look-only-icon { color: var(--accent); }
+.look-only-text { flex: 1; font-size: 12.5px; line-height: 1.45; color: var(--text-dim); }
+.look-only.can-unlock .look-only-text { color: var(--text); }
+.look-only .btn { flex-shrink: 0; }
 
 /* ── toast ─────────────────────────────────────────────────────── */
 .toast {

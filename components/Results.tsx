@@ -124,8 +124,9 @@ export function Results({
                 {result.transfers.length === 1
                   ? 'One payment clears everything.'
                   : `${result.transfers.length} payments clear everything.`}{' '}
-                Type what has actually been handed over and each row keeps its own total; the
-                circle fills the whole amount in at once.
+                {readOnly
+                  ? 'Tap a row to see how to pay someone back.'
+                  : 'Type what has actually been handed over and each row keeps its own total; the circle fills the whole amount in at once.'}
               </p>
             </>
           )}
@@ -239,10 +240,14 @@ function SettleRow({
           onClick={() => onRepaid(transfer.fromId, transfer.toId, done ? 0 : transfer.amount)}
           disabled={readOnly}
           aria-pressed={done}
+          aria-hidden={readOnly && !done}
+          tabIndex={readOnly ? -1 : undefined}
           aria-label={
-            done
-              ? `Mark ${fromName} to ${toName} as not paid`
-              : `Mark ${fromName} to ${toName} as paid in full`
+            readOnly
+              ? `${fromName} to ${toName}${done ? ' is paid' : ' is not paid yet'}`
+              : done
+                ? `Mark ${fromName} to ${toName} as not paid`
+                : `Mark ${fromName} to ${toName} as paid in full`
           }
         >
           <Check size={13} />

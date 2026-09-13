@@ -16,6 +16,7 @@ export function PhotoViewer({
   onLink,
   onDelete,
   onClose,
+  readOnly = false,
 }: {
   photos: PhotoMeta[];
   index: number;
@@ -25,6 +26,7 @@ export function PhotoViewer({
   onLink: (photoId: string, expenseId: string | null) => void;
   onDelete: (photoId: string) => void;
   onClose: () => void;
+  readOnly?: boolean;
 }) {
   const photo = photos[index];
 
@@ -89,10 +91,16 @@ export function PhotoViewer({
 
         <div className="viewer-foot">
           <span className="label" style={{ marginBottom: 8 }}>
-            Attach to an expense
+            {readOnly ? 'What this is for' : 'Attach to an expense'}
           </span>
 
-          {items.length === 0 ? (
+          {readOnly ? (
+            <p className="hint">
+              {photo.expenseId
+                ? items.find((i) => i.id === photo.expenseId)?.name || 'An expense on this event'
+                : 'Not attached to any one expense.'}
+            </p>
+          ) : items.length === 0 ? (
             <p className="hint">No expenses yet — add one and you can attach this to it.</p>
           ) : (
             <div className="picker">
@@ -119,17 +127,19 @@ export function PhotoViewer({
             </div>
           )}
 
-          <button
-            type="button"
-            className="btn danger block"
-            style={{ marginTop: 14 }}
-            onClick={() => {
-              if (window.confirm('Delete this photo?')) onDelete(photo.id);
-            }}
-          >
-            <Trash />
-            Delete photo
-          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              className="btn danger block"
+              style={{ marginTop: 14 }}
+              onClick={() => {
+                if (window.confirm('Delete this photo?')) onDelete(photo.id);
+              }}
+            >
+              <Trash />
+              Delete photo
+            </button>
+          )}
         </div>
       </div>
     </div>

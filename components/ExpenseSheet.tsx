@@ -7,7 +7,7 @@ import { currencyOf } from '@/lib/types';
 import { shareOut } from '@/lib/split';
 import { amountToInput, formatMoney, parseAmount } from '@/lib/format';
 import { Avatar } from './Avatar';
-import { Trash } from './Icons';
+import { Lock, Trash } from './Icons';
 
 export function ExpenseSheet({
   draft,
@@ -18,6 +18,8 @@ export function ExpenseSheet({
   onSave,
   onDelete,
   onClose,
+  readOnly = false,
+  onSignIn,
 }: {
   draft: Item;
   isNew: boolean;
@@ -27,6 +29,10 @@ export function ExpenseSheet({
   onSave: (item: Item) => void;
   onDelete: () => void;
   onClose: () => void;
+  /** Open to look at, closed to change — a view link, or an invite nobody has signed in on. */
+  readOnly?: boolean;
+  /** Given only when signing in would actually unlock this. */
+  onSignIn?: () => void;
 }) {
   const cur = currencyOf(currencyCode);
 
@@ -126,25 +132,50 @@ export function ExpenseSheet({
 
   return (
     <Sheet
-      title={isNew ? 'New expense' : 'Edit expense'}
+      title={readOnly ? 'Expense' : isNew ? 'New expense' : 'Edit expense'}
       onClose={onClose}
       footer={
         <>
-          {!isNew && (
+          {!isNew && !readOnly && (
             <button type="button" className="btn danger icon-only" onClick={onDelete} aria-label="Delete expense">
               <Trash />
             </button>
           )}
           <button type="button" className="btn ghost" onClick={onClose}>
-            Cancel
+            {readOnly ? 'Close' : 'Cancel'}
           </button>
-          <button type="button" className="btn primary" onClick={save} disabled={!!problem}>
+          {/* Kept in place rather than removed: the button being there and greyed
+              says "not yours to change" far more plainly than an absence does. */}
+          <button
+            type="button"
+            className="btn primary"
+            onClick={save}
+            disabled={readOnly || !!problem}
+          >
             {isNew ? 'Add' : 'Save'}
           </button>
         </>
       }
     >
       <>
+          {readOnly && (
+            <div className={`look-only${onSignIn ? ' can-unlock' : ''}`}>
+              <span className="look-only-icon">
+                <Lock size={15} />
+              </span>
+              <span className="look-only-text">
+                {onSignIn
+                  ? 'You were invited to edit this event. Sign in and these fields open up.'
+                  : 'Shared with you to look at. Nothing here can be changed.'}
+              </span>
+              {onSignIn && (
+                <button type="button" className="btn sm primary" onClick={onSignIn}>
+                  Sign in
+                </button>
+              )}
+            </div>
+          )}
+
           <div className="form-group">
             <label className="label" htmlFor="exp-name">
               What was it?
@@ -158,6 +189,7 @@ export function ExpenseSheet({
               placeholder="Pork, Makro run, karaoke…"
               autoComplete="off"
               enterKeyHint="next"
+              readOnly={readOnly}
             />
           </div>
 
@@ -176,6 +208,7 @@ export function ExpenseSheet({
                 inputMode="decimal"
                 autoComplete="off"
                 enterKeyHint="done"
+                readOnly={readOnly}
               />
             </div>
           </div>
@@ -191,6 +224,7 @@ export function ExpenseSheet({
                   style={{ ['--person-h' as string]: String(hueOf(p.id)) }}
                   aria-pressed={payerId === p.id}
                   onClick={() => setPayerId(p.id)}
+                  disabled={readOnly}
                 >
                   <Avatar name={p.name} hue={hueOf(p.id)} size="xs" />
                   {p.name || 'Unnamed'}
@@ -204,14 +238,16 @@ export function ExpenseSheet({
               <span className="label" style={{ margin: 0 }}>
                 Who shares it?
               </span>
-              <span className="quick">
-                <button type="button" onClick={() => setBearerIds(people.map((p) => p.id))}>
-                  Everyone
-                </button>
-                <button type="button" onClick={() => setBearerIds([])}>
-                  None
-                </button>
-              </span>
+              {!readOnly && (
+                <span className="quick">
+                  <button type="button" onClick={() => setBearerIds(people.map((p) => p.id))}>
+                    Everyone
+                  </button>
+                  <button type="button" onClick={() => setBearerIds([])}>
+                    None
+                  </button>
+                </span>
+              )}
             </div>
 
             <div className="picker">
@@ -226,6 +262,7 @@ export function ExpenseSheet({
                     style={{ ['--person-h' as string]: String(hueOf(p.id)) }}
                     aria-pressed={on}
                     onClick={() => toggleBearer(p.id)}
+                    disabled={readOnly}
                   >
                     <Avatar name={p.name} hue={hueOf(p.id)} size="xs" />
                     {p.name || 'Unnamed'}
@@ -248,6 +285,7 @@ export function ExpenseSheet({
                     type="checkbox"
                     checked={uneven}
                     onChange={(e) => setUneven(e.target.checked)}
+                    disabled={readOnly}
                     style={{ width: 17, height: 17, accentColor: 'var(--accent)' }}
                   />
                   Not an even split — someone had more
@@ -277,7 +315,7 @@ export function ExpenseSheet({
                                   type="button"
                                   className="icon-btn sm"
                                   onClick={() => setWeight(p.id, w - 1)}
-                                  disabled={w <= 1}
+                                  disabled={readOnly || w <= 1}
                                   aria-label={`Fewer shares for ${p.name}`}
                                 >
                                   &minus;
@@ -287,6 +325,7 @@ export function ExpenseSheet({
                                   type="button"
                                   className="icon-btn sm"
                                   onClick={() => setWeight(p.id, w + 1)}
+                                  disabled={readOnly}
                                   aria-label={`More shares for ${p.name}`}
                                 >
                                   +
@@ -307,6 +346,7 @@ export function ExpenseSheet({
                                     setExtraText((prev) => ({ ...prev, [p.id]: e.target.value }))
                                   }
                                   onFocus={(e) => e.currentTarget.select()}
+                                  readOnly={readOnly}
                                   aria-label={`Amount only ${p.name} had, not shared`}
                                 />
                               </span>

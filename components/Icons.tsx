@@ -182,3 +182,10 @@ export const Cloud = ({ size = 18 }: P) => (
     <path d="M12 16v-6M9.5 12.5 12 10l2.5 2.5" />
   </svg>
 );
+
+export const Lock = ({ size = 16 }: P) => (
+  <svg {...base(size)}>
+    <rect x="4" y="10.5" width="16" height="10" rx="2.5" />
+    <path d="M8 10.5V7a4 4 0 0 1 8 0v3.5" />
+  </svg>
+);

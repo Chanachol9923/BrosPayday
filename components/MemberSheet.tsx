@@ -21,6 +21,7 @@ export function MemberSheet({
   onSetPromptPay,
   onRemove,
   onClose,
+  readOnly = false,
 }: {
   person: Person;
   hue: number;
@@ -33,6 +34,8 @@ export function MemberSheet({
   onSetPromptPay: (value: string) => void;
   onRemove: () => void;
   onClose: () => void;
+  /** Open to look at, closed to change. */
+  readOnly?: boolean;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [promptPay, setPromptPay] = useState(payee?.promptPayId ?? '');
@@ -43,6 +46,7 @@ export function MemberSheet({
   // Paste a QR screenshot straight in, which is how it usually arrives on a laptop.
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
+      if (readOnly) return;
       const el = e.target as HTMLElement | null;
       if (el && /^(INPUT|TEXTAREA)$/.test(el.tagName)) return;
       const file = Array.from(e.clipboardData?.files ?? []).find((f) => f.type.startsWith('image/'));
@@ -53,7 +57,7 @@ export function MemberSheet({
     };
     window.addEventListener('paste', onPaste);
     return () => window.removeEventListener('paste', onPaste);
-  }, [onSetQrImage]);
+  }, [onSetQrImage, readOnly]);
 
   /**
    * Save as soon as the digits make sense rather than waiting for a blur —
@@ -61,6 +65,7 @@ export function MemberSheet({
    * Half-typed input is held back so a partial number never gets stored.
    */
   const changePromptPay = (next: string) => {
+    if (readOnly) return;
     setPromptPay(next);
     const trimmed = next.trim();
     if (trimmed === '' || parsePromptPayId(trimmed)) onSetPromptPay(trimmed);
@@ -77,15 +82,17 @@ export function MemberSheet({
           placeholder="Name"
           aria-label="Member name"
           autoComplete="off"
+          readOnly={readOnly}
         />
       </div>
 
       <div className="divider" />
 
-      <span className="label">Getting paid back — optional</span>
+      <span className="label">Getting paid back{readOnly ? '' : ' — optional'}</span>
       <p className="hint" style={{ marginBottom: 12 }}>
-        Add a payment QR and anyone who owes {person.name || 'them'} can scan it straight from the
-        settle-up screen. Saved against the name, so it comes back automatically in your next party.
+        {readOnly
+          ? `However ${person.name || 'they'} gets paid back. Only they can change it.`
+          : `Add a payment QR and anyone who owes ${person.name || 'them'} can scan it straight from the settle-up screen. Saved against the name, so it comes back automatically in your next party.`}
       </p>
 
       {/* ── a pasted QR image ─────────────────────────────────── */}
@@ -94,7 +101,7 @@ export function MemberSheet({
           <span className="pay-option-title">
             <Qr size={15} /> Their QR image
           </span>
-          {payee?.qrPhotoId && (
+          {payee?.qrPhotoId && !readOnly && (
             <button type="button" className="btn sm ghost" onClick={onClearQrImage}>
               <X size={13} />
               Remove
@@ -106,6 +113,8 @@ export function MemberSheet({
           <div className="pay-qr-preview">
             <Photo id={payee.qrPhotoId} kind="full" alt={`${person.name}'s payment QR`} />
           </div>
+        ) : readOnly ? (
+          <p className="hint">None added.</p>
         ) : (
           <button
             type="button"
@@ -118,17 +127,19 @@ export function MemberSheet({
           </button>
         )}
 
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          hidden
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) onSetQrImage(file);
-            e.target.value = '';
-          }}
-        />
+        {!readOnly && (
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onSetQrImage(file);
+              e.target.value = '';
+            }}
+          />
+        )}
       </div>
 
       {/* ── or a PromptPay number ─────────────────────────────── */}
@@ -145,6 +156,7 @@ export function MemberSheet({
           inputMode="numeric"
           autoComplete="off"
           aria-label="PromptPay number"
+          readOnly={readOnly}
         />
 
         {promptPay.trim() !== '' && !target && (
@@ -170,13 +182,17 @@ export function MemberSheet({
         )}
       </div>
 
-      <div className="divider" />
+      {!readOnly && (
+        <>
+          <div className="divider" />
 
-      <button type="button" className="btn danger block" onClick={onRemove}>
-        <Trash />
-        Remove from this party
-        {uses > 0 && <span className="hint" style={{ marginLeft: 6 }}>({uses} expenses)</span>}
-      </button>
+          <button type="button" className="btn danger block" onClick={onRemove}>
+            <Trash />
+            Remove from this party
+            {uses > 0 && <span className="hint" style={{ marginLeft: 6 }}>({uses} expenses)</span>}
+          </button>
+        </>
+      )}
     </Sheet>
   );
 }

@@ -12,12 +12,15 @@ export function PhotoShelf({
   busy,
   onAdd,
   onOpen,
+  readOnly = false,
 }: {
   photos: PhotoMeta[];
   items: Item[];
   busy: number;
   onAdd: (files: File[]) => void;
   onOpen: (id: string) => void;
+  /** Receipts are the whole point of a view link, so they stay visible — just not addable. */
+  readOnly?: boolean;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -29,6 +32,7 @@ export function PhotoShelf({
   // of a receipt or a QR is usually already on the clipboard.
   useEffect(() => {
     const onPaste = (e: ClipboardEvent) => {
+      if (readOnly) return;
       const target = e.target as HTMLElement | null;
       if (target && /^(INPUT|TEXTAREA)$/.test(target.tagName)) return;
       const files = Array.from(e.clipboardData?.files ?? []).filter((f) => f.type.startsWith('image/'));
@@ -42,6 +46,7 @@ export function PhotoShelf({
   }, [onAdd]);
 
   const takeFiles = (list: FileList | null) => {
+    if (readOnly) return;
     const files = Array.from(list ?? []).filter((f) => f.type.startsWith('image/'));
     if (files.length > 0) onAdd(files);
   };
@@ -94,33 +99,39 @@ export function PhotoShelf({
             );
           })}
 
-          <button
-            type="button"
-            className="photo-add"
-            onClick={() => fileRef.current?.click()}
-            aria-label="Add photos"
-          >
-            <Plus size={22} />
-            <span>Add</span>
-          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              className="photo-add"
+              onClick={() => fileRef.current?.click()}
+              aria-label="Add photos"
+            >
+              <Plus size={22} />
+              <span>Add</span>
+            </button>
+          )}
         </div>
 
-        <input
-          ref={fileRef}
-          type="file"
-          accept="image/*"
-          multiple
-          hidden
-          onChange={(e) => {
-            takeFiles(e.target.files);
-            e.target.value = '';
-          }}
-        />
+        {!readOnly && (
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            multiple
+            hidden
+            onChange={(e) => {
+              takeFiles(e.target.files);
+              e.target.value = '';
+            }}
+          />
+        )}
 
         <p className="hint" style={{ marginTop: 10 }}>
-          {photos.length === 0
-            ? 'Snap receipts as you go — as many as you like. Tap one later to attach it to an expense.'
-            : 'Stored on this device only. Photos do not travel in a share link.'}
+          {readOnly
+            ? 'Tap one to see it full size.'
+            : photos.length === 0
+              ? 'Snap receipts as you go — as many as you like. Tap one later to attach it to an expense.'
+              : 'Stored on this device only. Photos do not travel in a share link.'}
         </p>
       </div>
     </section>

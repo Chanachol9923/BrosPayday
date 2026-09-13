@@ -969,8 +969,11 @@ export default function Page() {
                     </select>
                   </span>
                   <span className="sep" />
-                  <button type="button" className="accent" onClick={openShare}>
+                  <button type="button" className="feature" onClick={openShare}>
                     <Share /> Share this event
+                  </button>
+                  <button type="button" className="feature" onClick={startNewParty}>
+                    <Plus /> Save &amp; start new event
                   </button>
                   <button
                     type="button"
@@ -1000,9 +1003,6 @@ export default function Page() {
                     <Inbox /> View/Join Event with a code
                   </button>
                   <span className="sep" />
-                  <button type="button" onClick={startNewParty}>
-                    <Plus /> Save &amp; start new event
-                  </button>
                   <button type="button" className="danger" onClick={discardParty}>
                     <Trash /> Delete this event
                   </button>
@@ -1096,14 +1096,15 @@ export default function Page() {
             photoCountFor={(id) => photosForExpense(party, id).length}
             readOnly={readOnly}
           />
-          {!readOnly && (
-          <PhotoShelf
-            photos={party.photos ?? []}
-            items={party.items}
-            busy={photoBusy}
-            onAdd={(files) => void addPhotos(files)}
-            onOpen={(id) => setPhotoIndex((party.photos ?? []).findIndex((p) => p.id === id))}
-          />
+          {(!readOnly || (party.photos ?? []).length > 0) && (
+            <PhotoShelf
+              photos={party.photos ?? []}
+              items={party.items}
+              busy={photoBusy}
+              onAdd={(files) => void addPhotos(files)}
+              onOpen={(id) => setPhotoIndex((party.photos ?? []).findIndex((p) => p.id === id))}
+              readOnly={readOnly}
+            />
           )}
         </div>
 
@@ -1176,6 +1177,12 @@ export default function Page() {
           onSave={saveExpense}
           onDelete={deleteExpense}
           onClose={() => setSheet(null)}
+          readOnly={readOnly}
+          onSignIn={
+            shareMode?.signInToEdit
+              ? () => void cloud.signIn(window.location.pathname + window.location.search)
+              : undefined
+          }
         />
       )}
 
@@ -1283,6 +1290,7 @@ export default function Page() {
                 setMemberId(null);
               }}
               onClose={() => setMemberId(null)}
+              readOnly={readOnly}
             />
           );
         })()}
@@ -1321,6 +1329,7 @@ export default function Page() {
           onLink={linkPhoto}
           onDelete={(id) => void removePhoto(id)}
           onClose={() => setPhotoIndex(null)}
+          readOnly={readOnly}
         />
       )}
 

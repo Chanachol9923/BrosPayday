@@ -10,8 +10,8 @@ import { supabase } from '../supabase/client';
  * what makes a party you already opened work with no signal.
  *
  * Paths carry their own authorisation:
- *   <party_id>/<photo_id>      a receipt, readable by the party's crew
- *   crew/<group_id>/<photo_id> a payment QR, readable by that crew
+ *   <party_id>/<photo_id>      a receipt, readable by the party's Group
+ *   crew/<group_id>/<photo_id> a payment QR, readable by that Group
  */
 
 const BUCKET = 'party-photos';
@@ -21,7 +21,12 @@ export function receiptPath(partyId: string, photoId: string): string {
   return `${partyId}/${photoId}`;
 }
 
-export function crewPath(groupId: string, photoId: string): string {
+/**
+ * The prefix stays `crew/` even though the feature is called a Group: migration
+ * 0002 keys the storage policy off it, and files are already stored under it.
+ * Renaming the path would orphan every payment QR already uploaded.
+ */
+export function groupPath(groupId: string, photoId: string): string {
   return `crew/${groupId}/${photoId}`;
 }
 

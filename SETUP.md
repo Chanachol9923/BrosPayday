@@ -77,10 +77,10 @@ Without the localhost entry, signing in while developing bounces you to producti
 ## Then
 
 Reload the app. You will be asked to sign in with Google, and after that to start a
-crew or join one with a code. Anything already saved on that device is offered up to
+Group or join one with a code. Anything already saved on that device is offered up to
 the cloud on the first sign-in, so nothing from before is lost.
 
-To bring someone in: **⋯ → Crew → Invite**, and send them the link or the code.
+To bring someone in: **⋯ → Group → Invite**, and send them the link or the code.
 
 ## Two kinds of share link
 

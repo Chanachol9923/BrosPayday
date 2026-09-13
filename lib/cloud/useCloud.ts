@@ -21,10 +21,10 @@ export type CloudStatus =
   | 'off' // no keys configured — the app is local-only, exactly as before
   | 'loading'
   | 'signed-out'
-  | 'no-crew'
+  | 'no-group'
   | 'ready';
 
-const LAST_CREW_KEY = 'brospayday.crew';
+const LAST_GROUP_KEY = 'brospayday.group';
 
 /** Writes are batched behind this much quiet, so typing a title is one round trip. */
 const PUSH_DEBOUNCE_MS = 700;
@@ -41,8 +41,8 @@ function sliceOf(store: Store, groupId: string): GroupSlice {
 export function useCloud(store: Store, setStore: (next: Store | ((prev: Store) => Store)) => void) {
   const [status, setStatus] = useState<CloudStatus>(cloudConfigured ? 'loading' : 'off');
   const [user, setUser] = useState<User | null>(null);
-  const [crews, setCrews] = useState<CloudGroup[]>([]);
-  const [activeCrewId, setActiveCrewId] = useState<string | null>(null);
+  const [groups, setGroups] = useState<CloudGroup[]>([]);
+  const [activeGroupId, setActiveGroupId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
 
@@ -71,7 +71,7 @@ export function useCloud(store: Store, setStore: (next: Store | ((prev: Store) =
       setUser(session?.user ?? null);
       if (!session) {
         setStatus('signed-out');
-        setActiveCrewId(null);
+        setActiveGroupId(null);
         confirmed.current = null;
       }
     });
@@ -82,33 +82,33 @@ export function useCloud(store: Store, setStore: (next: Store | ((prev: Store) =
     };
   }, []);
 
-  /* ── which crews am I in ───────────────────────────────────────── */
-  const refreshCrews = useCallback(async () => {
+  /* ── which groups am I in ───────────────────────────────────────── */
+  const refreshGroups = useCallback(async () => {
     if (!user) return;
     try {
       const found = await listGroups();
-      setCrews(found);
+      setGroups(found);
 
       if (found.length === 0) {
-        setActiveCrewId(null);
-        setStatus('no-crew');
+        setActiveGroupId(null);
+        setStatus('no-group');
         return;
       }
 
-      const remembered = localStorage.getItem(LAST_CREW_KEY);
+      const remembered = localStorage.getItem(LAST_GROUP_KEY);
       const pick = found.find((c) => c.id === remembered)?.id ?? found[0].id;
-      setActiveCrewId(pick);
+      setActiveGroupId(pick);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load your crews.');
+      setError(e instanceof Error ? e.message : 'Could not load your Groups.');
       setStatus('signed-out');
     }
   }, [user]);
 
   useEffect(() => {
-    if (user) void refreshCrews();
-  }, [user, refreshCrews]);
+    if (user) void refreshGroups();
+  }, [user, refreshGroups]);
 
-  /* ── pull a crew's data into the store ─────────────────────────── */
+  /* ── pull a Group's data into the store ─────────────────────────── */
   const pull = useCallback(
     async (groupId: string) => {
       try {
@@ -118,7 +118,7 @@ export function useCloud(store: Store, setStore: (next: Store | ((prev: Store) =
         applying.current = true;
         setStore((prev) => ({
           ...prev,
-          profiles: crews.map((c) => ({ id: c.id, name: c.name, createdAt: 0 })),
+          profiles: groups.map((c) => ({ id: c.id, name: c.name, createdAt: 0 })),
           activeProfileId: groupId,
           current: { ...prev.current, [groupId]: current },
           history: { ...prev.history, [groupId]: data.history },
@@ -134,31 +134,31 @@ export function useCloud(store: Store, setStore: (next: Store | ((prev: Store) =
         };
         setStatus('ready');
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Could not load this crew.');
+        setError(e instanceof Error ? e.message : 'Could not load this Group.');
       } finally {
         applying.current = false;
       }
     },
-    [crews, setStore],
+    [groups, setStore],
   );
 
   useEffect(() => {
-    if (!activeCrewId || !user) return;
-    localStorage.setItem(LAST_CREW_KEY, activeCrewId);
-    void pull(activeCrewId);
-    // crews is intentionally out of the deps: renaming one should not refetch
+    if (!activeGroupId || !user) return;
+    localStorage.setItem(LAST_GROUP_KEY, activeGroupId);
+    void pull(activeGroupId);
+    // groups is intentionally out of the deps: renaming one should not refetch
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeCrewId, user]);
+  }, [activeGroupId, user]);
 
   /* ── push local changes up ─────────────────────────────────────── */
   useEffect(() => {
-    if (status !== 'ready' || !activeCrewId || !user) return;
+    if (status !== 'ready' || !activeGroupId || !user) return;
     if (applying.current) return;
 
     const base = confirmed.current;
     if (!base) return;
 
-    const next = sliceOf(store, activeCrewId);
+    const next = sliceOf(store, activeGroupId);
     const ops = diffGroup(base, next);
     if (ops.length === 0) return;
 
@@ -166,7 +166,7 @@ export function useCloud(store: Store, setStore: (next: Store | ((prev: Store) =
     pushTimer.current = setTimeout(() => {
       const archivedIds = new Set(next.history.map((p) => p.id));
       setSyncing(true);
-      applyOps(ops, { groupId: activeCrewId, userId: user.id, archivedIds })
+      applyOps(ops, { groupId: activeGroupId, userId: user.id, archivedIds })
         .then(() => {
           confirmed.current = next;
           setError(null);
@@ -181,18 +181,18 @@ export function useCloud(store: Store, setStore: (next: Store | ((prev: Store) =
     return () => {
       if (pushTimer.current) clearTimeout(pushTimer.current);
     };
-  }, [store, status, activeCrewId, user]);
+  }, [store, status, activeGroupId, user]);
 
   /* ── somebody else changed something ───────────────────────────── */
   useEffect(() => {
-    if (status !== 'ready' || !activeCrewId) return;
+    if (status !== 'ready' || !activeGroupId) return;
 
     let timer: ReturnType<typeof setTimeout> | null = null;
-    const unsubscribe = subscribeToGroup(activeCrewId, () => {
+    const unsubscribe = subscribeToGroup(activeGroupId, () => {
       // A push of our own comes back as a change too; wait for quiet, then re-read.
       if (timer) clearTimeout(timer);
       timer = setTimeout(() => {
-        if (!pushTimer.current && !applying.current) void pull(activeCrewId);
+        if (!pushTimer.current && !applying.current) void pull(activeGroupId);
       }, 900);
     });
 
@@ -200,7 +200,7 @@ export function useCloud(store: Store, setStore: (next: Store | ((prev: Store) =
       if (timer) clearTimeout(timer);
       unsubscribe();
     };
-  }, [status, activeCrewId, pull]);
+  }, [status, activeGroupId, pull]);
 
   /* ── actions ───────────────────────────────────────────────────── */
   const signIn = useCallback(async () => {
@@ -216,44 +216,44 @@ export function useCloud(store: Store, setStore: (next: Store | ((prev: Store) =
   const signOut = useCallback(async () => {
     const db = supabase();
     if (!db) return;
-    localStorage.removeItem(LAST_CREW_KEY);
+    localStorage.removeItem(LAST_GROUP_KEY);
     await db.auth.signOut();
   }, []);
 
-  const startCrew = useCallback(
+  const startGroup = useCallback(
     async (name: string) => {
       if (!user) return;
       try {
-        const crew = await createGroup(name, user.id);
-        setCrews((prev) => [...prev, crew]);
-        setActiveCrewId(crew.id);
+        const group = await createGroup(name, user.id);
+        setGroups((prev) => [...prev, group]);
+        setActiveGroupId(group.id);
         setStatus('loading');
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Could not start that crew.');
+        setError(e instanceof Error ? e.message : 'Could not start that Group.');
       }
     },
     [user],
   );
 
-  const joinCrew = useCallback(async (code: string) => {
+  const joinGroup = useCallback(async (code: string) => {
     try {
       const groupId = await joinGroupByCode(code.trim().toUpperCase());
       const found = await listGroups();
-      setCrews(found);
-      setActiveCrewId(groupId);
+      setGroups(found);
+      setActiveGroupId(groupId);
       setStatus('loading');
     } catch {
-      setError('No crew has that code.');
+      setError('No Group has that code.');
     }
   }, []);
 
-  const switchCrew = useCallback((id: string) => {
+  const switchGroup = useCallback((id: string) => {
     setStatus('loading');
-    setActiveCrewId(id);
+    setActiveGroupId(id);
   }, []);
 
   const rename = useCallback(async (id: string, name: string) => {
-    setCrews((prev) => prev.map((c) => (c.id === id ? { ...c, name } : c)));
+    setGroups((prev) => prev.map((c) => (c.id === id ? { ...c, name } : c)));
     try {
       await renameGroup(id, name);
     } catch {
@@ -261,22 +261,22 @@ export function useCloud(store: Store, setStore: (next: Store | ((prev: Store) =
     }
   }, []);
 
-  const activeCrew = useMemo(() => crews.find((c) => c.id === activeCrewId) ?? null, [crews, activeCrewId]);
+  const activeGroup = useMemo(() => groups.find((c) => c.id === activeGroupId) ?? null, [groups, activeGroupId]);
 
   return {
     configured: cloudConfigured,
     status,
     user,
-    crews,
-    activeCrew,
-    activeCrewId,
+    groups,
+    activeGroup,
+    activeGroupId,
     error,
     syncing,
     signIn,
     signOut,
-    startCrew,
-    joinCrew,
-    switchCrew,
+    startGroup,
+    joinGroup,
+    switchGroup,
     rename,
     dismissError: () => setError(null),
   };

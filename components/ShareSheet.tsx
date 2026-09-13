@@ -146,7 +146,7 @@ export function ShareSheet({
           </div>
           <p className="hint" style={{ marginTop: 9 }}>
             An edit link lets someone add what they bought. It reaches this party and nothing else —
-            not your other parties, not your crew.
+            not your other parties, not your Group.
           </p>
         </>
       )}

@@ -165,8 +165,8 @@ export function PeoplePanel({
 
         {!readOnly && people.length === 0 && (
           <p className="hint" style={{ marginTop: 9 }}>
-            Tip — type several names separated by commas to add them all at once. Save a crew you
-            use often as a preset and it&rsquo;s one tap next time.
+            Tip — type several names separated by commas to add them all at once. Save the people you
+            split with often as a preset and it&rsquo;s one tap next time.
           </p>
         )}
       </div>

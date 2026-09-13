@@ -56,7 +56,7 @@ export function ProfileSheet({
           <div className="signin-offer">
             <span className="signin-offer-text">
               <b>Only on this device.</b> Sign in and your parties follow you to any phone or
-              laptop, and your crew sees them too. Nothing here is lost — it comes with you.
+              laptop, and your Group sees them too. Nothing here is lost — it comes with you.
             </span>
             <button type="button" className="btn primary block" onClick={onSignIn}>
               <Cloud size={16} />

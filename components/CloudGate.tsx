@@ -17,27 +17,27 @@ function GoogleMark() {
 
 /**
  * What you see before there is anywhere to put your data: sign in, then either
- * start a crew or join one. Staying local is always an option — the app has never
+ * start a Group or join one. Staying local is always an option — the app has never
  * needed an account and still does not.
  */
 export function CloudGate({
   status,
   error,
   onSignIn,
-  onStartCrew,
-  onJoinCrew,
+  onStartGroup,
+  onJoinGroup,
   onStayLocal,
   onSignOut,
 }: {
   status: CloudStatus;
   error: string | null;
   onSignIn: () => void;
-  onStartCrew: (name: string) => void;
-  onJoinCrew: (code: string) => void;
+  onStartGroup: (name: string) => void;
+  onJoinGroup: (code: string) => void;
   onStayLocal: () => void;
   onSignOut: () => void;
 }) {
-  const [crewName, setCrewName] = useState('');
+  const [groupName, setGroupName] = useState('');
   const [joinCode, setJoinCode] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -58,7 +58,7 @@ export function CloudGate({
           <>
             <p className="gate-lede">
               Sign in and your parties follow you to any phone or laptop, and the people in your
-              crew see them too.
+              Group see them too.
             </p>
 
             <button type="button" className="btn google block" onClick={onSignIn}>
@@ -78,38 +78,38 @@ export function CloudGate({
         ) : (
           <>
             <p className="gate-lede">
-              One more step — a crew is the group you split bills with. Everyone in it sees the same
+              One more step — a Group is the people you split bills with. Everyone in it sees the same
               parties.
             </p>
 
             <div className="gate-block">
-              <span className="label">Start a new crew</span>
+              <span className="label">Start a new Group</span>
               <div className="add-person">
                 <input
                   className="field"
-                  value={crewName}
-                  onChange={(e) => setCrewName(e.target.value)}
+                  value={groupName}
+                  onChange={(e) => setGroupName(e.target.value)}
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter' && crewName.trim()) {
+                    if (e.key === 'Enter' && groupName.trim()) {
                       setBusy(true);
-                      onStartCrew(crewName.trim());
+                      onStartGroup(groupName.trim());
                     }
                   }}
                   placeholder="The bros, Flat 3, Office lunch…"
-                  aria-label="New crew name"
+                  aria-label="New Group name"
                   autoComplete="off"
                 />
                 <button
                   type="button"
                   className="btn primary"
-                  disabled={!crewName.trim() || busy}
+                  disabled={!groupName.trim() || busy}
                   onClick={() => {
                     setBusy(true);
-                    onStartCrew(crewName.trim());
+                    onStartGroup(groupName.trim());
                   }}
                 >
                   <Plus size={18} />
-                  <span className="sr">Create crew</span>
+                  <span className="sr">Create Group</span>
                 </button>
               </div>
             </div>
@@ -126,12 +126,12 @@ export function CloudGate({
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' && joinCode.trim()) {
                       setBusy(true);
-                      onJoinCrew(joinCode.trim());
+                      onJoinGroup(joinCode.trim());
                     }
                   }}
                   placeholder="ABC123"
                   maxLength={6}
-                  aria-label="Crew join code"
+                  aria-label="Group join code"
                   autoComplete="off"
                   spellCheck={false}
                 />
@@ -141,11 +141,11 @@ export function CloudGate({
                   disabled={joinCode.trim().length < 4 || busy}
                   onClick={() => {
                     setBusy(true);
-                    onJoinCrew(joinCode.trim());
+                    onJoinGroup(joinCode.trim());
                   }}
                 >
                   <Users size={18} />
-                  <span className="sr">Join crew</span>
+                  <span className="sr">Join Group</span>
                 </button>
               </div>
             </div>

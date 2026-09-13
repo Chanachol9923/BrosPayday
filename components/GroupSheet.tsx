@@ -8,8 +8,8 @@ import { Avatar } from './Avatar';
 import { Sheet } from './Sheet';
 import { Check, Copy, Plus, Swap, Users } from './Icons';
 
-export function CrewSheet({
-  crews,
+export function GroupSheet({
+  groups,
   activeId,
   userName,
   onSwitch,
@@ -20,7 +20,7 @@ export function CrewSheet({
   onCopy,
   onClose,
 }: {
-  crews: CloudGroup[];
+  groups: CloudGroup[];
   activeId: string | null;
   userName: string;
   onSwitch: (id: string) => void;
@@ -32,11 +32,11 @@ export function CrewSheet({
   onClose: () => void;
 }) {
   const [members, setMembers] = useState<{ id: string; name: string; avatar: string | null }[]>([]);
-  const [newCrew, setNewCrew] = useState('');
+  const [newGroup, setNewGroup] = useState('');
   const [code, setCode] = useState('');
   const [adding, setAdding] = useState(false);
 
-  const active = crews.find((c) => c.id === activeId) ?? null;
+  const active = groups.find((c) => c.id === activeId) ?? null;
 
   useEffect(() => {
     if (!activeId) return;
@@ -52,13 +52,13 @@ export function CrewSheet({
   }, [activeId]);
 
   const inviteLink = active
-    ? `${typeof window === 'undefined' ? '' : window.location.origin}/?crew=${active.joinCode}`
+    ? `${typeof window === 'undefined' ? '' : window.location.origin}/?group=${active.joinCode}`
     : '';
 
   return (
-    <Sheet title="Your crew" onClose={onClose}>
+    <Sheet title="Your Group" onClose={onClose}>
       <p className="hint" style={{ marginBottom: 13 }}>
-        Signed in as <b style={{ color: 'var(--text)' }}>{userName}</b>. A crew is the group you
+        Signed in as <b style={{ color: 'var(--text)' }}>{userName}</b>. A Group is the people you
         split with — everyone in it sees the same parties on any device.
       </p>
 
@@ -87,13 +87,13 @@ export function CrewSheet({
             </div>
           </div>
           <p className="hint" style={{ marginTop: 8 }}>
-            They sign in with Google, and the code puts them straight into this crew.
+            They sign in with Google, and the code puts them straight into this Group.
           </p>
 
           <div className="divider" />
 
           <span className="label">
-            In this crew ({members.length})
+            In this Group ({members.length})
           </span>
           <div className="picker" style={{ marginBottom: 4 }}>
             {members.map((m, i) => (
@@ -108,21 +108,21 @@ export function CrewSheet({
 
       <div className="divider" />
 
-      <span className="label">Crews you are in</span>
+      <span className="label">Groups you are in</span>
       <div className="row-list">
-        {crews.map((crew, i) => {
-          const isActive = crew.id === activeId;
+        {groups.map((group, i) => {
+          const isActive = group.id === activeId;
           return (
-            <div className={`row-card${isActive ? ' active' : ''}`} key={crew.id}>
-              <Avatar name={crew.name} hue={hueForIndex(i)} />
+            <div className={`row-card${isActive ? ' active' : ''}`} key={group.id}>
+              <Avatar name={group.name} hue={hueForIndex(i)} />
               <span className="row-main">
                 <input
                   className="row-name-input"
-                  value={crew.name}
-                  onChange={(e) => onRename(crew.id, e.target.value)}
-                  aria-label={`Name of ${crew.name}`}
+                  value={group.name}
+                  onChange={(e) => onRename(group.id, e.target.value)}
+                  aria-label={`Name of ${group.name}`}
                 />
-                <span className="row-sub num">code {crew.joinCode}</span>
+                <span className="row-sub num">code {group.joinCode}</span>
               </span>
               {isActive ? (
                 <span className="pill pos">
@@ -130,7 +130,7 @@ export function CrewSheet({
                   Active
                 </span>
               ) : (
-                <button type="button" className="btn sm" onClick={() => onSwitch(crew.id)}>
+                <button type="button" className="btn sm" onClick={() => onSwitch(group.id)}>
                   <Swap size={14} />
                   Switch
                 </button>
@@ -143,21 +143,21 @@ export function CrewSheet({
       {adding ? (
         <>
           <div className="divider" />
-          <span className="label">Start another crew</span>
+          <span className="label">Start another Group</span>
           <div className="add-person">
             <input
               className="field"
-              value={newCrew}
-              onChange={(e) => setNewCrew(e.target.value)}
-              placeholder="Crew name"
-              aria-label="New crew name"
+              value={newGroup}
+              onChange={(e) => setNewGroup(e.target.value)}
+              placeholder="Group name"
+              aria-label="New Group name"
               autoComplete="off"
             />
             <button
               type="button"
               className="btn primary"
-              disabled={!newCrew.trim()}
-              onClick={() => onCreate(newCrew.trim())}
+              disabled={!newGroup.trim()}
+              onClick={() => onCreate(newGroup.trim())}
             >
               <Plus size={18} />
               <span className="sr">Create</span>
@@ -174,7 +174,7 @@ export function CrewSheet({
               onChange={(e) => setCode(e.target.value.toUpperCase())}
               placeholder="ABC123"
               maxLength={6}
-              aria-label="Crew join code"
+              aria-label="Group join code"
               autoComplete="off"
             />
             <button
@@ -191,7 +191,7 @@ export function CrewSheet({
       ) : (
         <button type="button" className="btn ghost block" style={{ marginTop: 12 }} onClick={() => setAdding(true)}>
           <Plus size={16} />
-          Start or join another crew
+          Start or join another Group
         </button>
       )}
 

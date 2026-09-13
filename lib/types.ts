@@ -65,7 +65,7 @@ export type Profile = {
   createdAt: number;
 };
 
-/** A reusable party template: the same crew, the same usual expenses. */
+/** A reusable party template: the same line-up, the same usual expenses. */
 export type Preset = {
   id: string;
   /** What the template is called, e.g. "Bros" or "Office lunch". */

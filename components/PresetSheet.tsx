@@ -37,7 +37,7 @@ export function PresetSheet({
   return (
     <Sheet title="Presets" onClose={onClose}>
       <p className="hint" style={{ marginBottom: 13 }}>
-        A preset is your usual crew saved under a name. Tap one and everybody is added at once —
+        A preset is your usual line-up saved under a name. Tap one and everybody is added at once —
         handy when every visit starts with a blank sheet.
       </p>
 

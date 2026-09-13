@@ -29,14 +29,6 @@ function client() {
   return db;
 }
 
-/** Short, unambiguous, and safe to read down a phone line. No I, O, 0 or 1. */
-function makeJoinCode(): string {
-  const alphabet = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let out = '';
-  for (let i = 0; i < 6; i++) out += alphabet[Math.floor(Math.random() * alphabet.length)];
-  return out;
-}
-
 /* ── groups ──────────────────────────────────────────────────────── */
 
 export async function listGroups(): Promise<CloudGroup[]> {
@@ -49,32 +41,18 @@ export async function listGroups(): Promise<CloudGroup[]> {
   return (data ?? []).map((g) => ({ id: g.id, name: g.name, joinCode: g.join_code }));
 }
 
-export async function createGroup(name: string, userId: string): Promise<CloudGroup> {
-  const db = client();
+export async function createGroup(name: string, _userId?: string): Promise<CloudGroup> {
+  // One call, server side: the group and the creator's membership are created
+  // together. Doing it as two client statements meant the insert's RETURNING had
+  // to pass a select policy that asks whether you are a member — which you were
+  // not yet — so the row came back empty and the group was stranded.
+  const { data, error } = await client().rpc('create_group', { name });
+  if (error) throw error;
 
-  // The unique constraint on join_code is the real guard; a couple of retries
-  // covers the vanishingly rare clash without a round trip to check first.
-  for (let attempt = 0; attempt < 5; attempt++) {
-    const joinCode = makeJoinCode();
-    const { data, error } = await db
-      .from('groups')
-      .insert({ name: name.trim() || 'My crew', join_code: joinCode, created_by: userId })
-      .select('id, name, join_code')
-      .single();
+  const row = data as { id: string; name: string; join_code: string } | null;
+  if (!row) throw new Error('The group was not created.');
 
-    if (!error && data) {
-      const { error: memberError } = await db
-        .from('group_members')
-        .insert({ group_id: data.id, user_id: userId, role: 'owner' });
-      if (memberError) throw memberError;
-
-      return { id: data.id, name: data.name, joinCode: data.join_code };
-    }
-
-    if (error && error.code !== '23505') throw error; // 23505 = duplicate code, try again
-  }
-
-  throw new Error('Could not allocate a join code. Try again.');
+  return { id: row.id, name: row.name, joinCode: row.join_code };
 }
 
 export async function joinGroupByCode(code: string): Promise<string> {
@@ -466,7 +444,7 @@ export async function revokeShareLink(token: string): Promise<void> {
 
 export type SharedPartyView = { role: 'view' | 'edit'; party: Party };
 
-/** Read a party with nothing but a link. No sign-in, no crew. */
+/** Read a party with nothing but a link. No sign-in, no Group. */
 export async function readSharedParty(token: string): Promise<SharedPartyView | null> {
   const db = supabase();
   if (!db) return null;

@@ -333,7 +333,7 @@ export function setCurrent(store: Store, profileId: string, party: Party): Store
 
 /* ── presets ─────────────────────────────────────────────────────── */
 
-/** Capture the crew and the usual expense names from a party, amounts dropped. */
+/** Capture the line-up and the usual expense names from a party, amounts dropped. */
 export function presetFromParty(party: Party, name: string): Preset {
   const seen = new Set<string>();
   const itemNames: string[] = [];

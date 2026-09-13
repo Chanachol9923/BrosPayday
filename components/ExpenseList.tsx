@@ -114,7 +114,7 @@ export function ExpenseList({
 
         {!readOnly && canAdd && suggestions.length > 0 && (
           <div className="preset-strip" style={{ marginTop: 12 }}>
-            <span className="preset-strip-label">Usual for this crew</span>
+            <span className="preset-strip-label">Usual for this Group</span>
             <span className="picker">
               {suggestions.map((name) => (
                 <button

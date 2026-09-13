@@ -53,14 +53,14 @@ import {
 import { cloudConfigured } from '@/lib/supabase/client';
 import { useCloud } from '@/lib/cloud/useCloud';
 import {
-  crewPath,
+  groupPath,
   downloadPhoto,
   receiptPath,
   removePhoto as removePhoto_cloud,
   uploadPhoto,
 } from '@/lib/cloud/photos';
 import { CloudGate, CloudLoading } from '@/components/CloudGate';
-import { CrewSheet } from '@/components/CrewSheet';
+import { GroupSheet } from '@/components/GroupSheet';
 import { diffParty } from '@/lib/cloud/diff';
 import type { ShareLink } from '@/lib/cloud/api';
 import {
@@ -122,7 +122,7 @@ export default function Page() {
   const [photoIndex, setPhotoIndex] = useState<number | null>(null);
   const [photoBusy, setPhotoBusy] = useState(0);
   const [localOnly, setLocalOnly] = useState(false);
-  /** Set when the page was opened with a share token rather than by a crew member. */
+  /** Set when the page was opened with a share token rather than by a Group member. */
   const [shareMode, setShareMode] = useState<{ token: string; role: 'view' | 'edit' } | null>(null);
   const [shareLoading, setShareLoading] = useState(false);
   const [cloudLinks, setCloudLinks] = useState<ShareLink[]>([]);
@@ -173,7 +173,7 @@ export default function Page() {
     if (chosenLocal) setLocalOnly(true);
 
     if (cloudConfigured && !chosenLocal) {
-      // useCloud pulls the crew's data; touching the local store here would
+      // useCloud pulls the Group's data; touching the local store here would
       // briefly show someone else's device state and then fight the sync.
       setLoaded(true);
       return;
@@ -204,8 +204,8 @@ export default function Page() {
       const inParty = (party.photos ?? []).some((p) => p.id === photoId);
       const path = inParty
         ? receiptPath(party.id, photoId)
-        : cloud.activeCrewId
-          ? crewPath(cloud.activeCrewId, photoId)
+        : cloud.activeGroupId
+          ? groupPath(cloud.activeGroupId, photoId)
           : null;
       return path ? downloadPhoto(path) : null;
     });
@@ -213,12 +213,12 @@ export default function Page() {
   });
 
   /**
-   * Anything already on this device is offered up the first time a crew is joined.
+   * Anything already on this device is offered up the first time a Group is joined.
    * It is a copy, not a move: the local data is left alone, so a failed upload or
    * a change of mind costs nothing.
    */
   useEffect(() => {
-    if (!usingCloud || cloud.status !== 'ready' || !cloud.activeCrewId || !cloud.user) return;
+    if (!usingCloud || cloud.status !== 'ready' || !cloud.activeGroupId || !cloud.user) return;
     if (localStorage.getItem(MIGRATED_KEY)) return;
 
     const local = loadStore().store;
@@ -231,33 +231,35 @@ export default function Page() {
     localStorage.setItem(MIGRATED_KEY, 'asked');
     if (worthMoving.length === 0) return;
 
-    const crewName = cloud.activeCrew?.name ?? 'this crew';
+    const groupName = cloud.activeGroup?.name ?? 'this Group';
     const ok = window.confirm(
       `${worthMoving.length} ${worthMoving.length === 1 ? 'party is' : 'parties are'} saved on this device.
 
 ` +
-        `Copy ${worthMoving.length === 1 ? 'it' : 'them'} into ${crewName}? The local copy is kept either way.`,
+        `Copy ${worthMoving.length === 1 ? 'it' : 'them'} into ${groupName}? The local copy is kept either way.`,
     );
     if (!ok) return;
 
     const ops = worthMoving.flatMap((pt) => diffParty(null, pt));
     applyOps(ops, {
-      groupId: cloud.activeCrewId,
+      groupId: cloud.activeGroupId,
       userId: cloud.user.id,
       // everything brought over lands in history, not on the workbench
       archivedIds: new Set(worthMoving.map((pt) => pt.id)),
     })
-      .then(() => setToast(`Moved ${worthMoving.length} into ${crewName}`))
+      .then(() => setToast(`Moved ${worthMoving.length} into ${groupName}`))
       .catch(() => setToast('Could not copy those up — they are still on this device'));
-  }, [usingCloud, cloud.status, cloud.activeCrewId, cloud.user, cloud.activeCrew]);
+  }, [usingCloud, cloud.status, cloud.activeGroupId, cloud.user, cloud.activeGroup]);
 
-  // An invite link drops someone straight into the right crew.
+  // An invite link drops someone straight into the right Group.
   useEffect(() => {
-    if (!usingCloud || cloud.status !== 'no-crew') return;
-    const code = new URLSearchParams(window.location.search).get('crew');
+    if (!usingCloud || cloud.status !== 'no-group') return;
+    // `crew` is the older spelling; links already sent out keep working.
+    const params = new URLSearchParams(window.location.search);
+    const code = params.get('group') ?? params.get('crew');
     if (!code) return;
     history.replaceState(null, '', window.location.pathname);
-    void cloud.joinCrew(code);
+    void cloud.joinGroup(code);
   }, [usingCloud, cloud]);
 
   // Deleting a party or trimming history can strand image blobs in IndexedDB.
@@ -421,9 +423,9 @@ export default function Page() {
     try {
       await savePhoto(file, id, QR_ENCODE);
 
-      if (usingCloud && cloud.activeCrewId) {
+      if (usingCloud && cloud.activeGroupId) {
         const blob = await getPhotoBlob(id, 'full');
-        if (blob) await uploadPhoto(crewPath(cloud.activeCrewId, id), blob);
+        if (blob) await uploadPhoto(groupPath(cloud.activeGroupId, id), blob);
       }
 
       setStore((prev) => setPayee(prev, prev.activeProfileId, person.name, { qrPhotoId: id }));
@@ -443,8 +445,8 @@ export default function Page() {
     setStore((prev) => setPayee(prev, prev.activeProfileId, person.name, { qrPhotoId: null }));
     if (previous) {
       await deletePhoto(previous).catch(() => undefined);
-      if (usingCloud && cloud.activeCrewId) {
-        await removePhoto_cloud(crewPath(cloud.activeCrewId, previous)).catch(() => undefined);
+      if (usingCloud && cloud.activeGroupId) {
+        await removePhoto_cloud(groupPath(cloud.activeGroupId, previous)).catch(() => undefined);
       }
     }
   };
@@ -694,7 +696,7 @@ export default function Page() {
   /* ── render ──────────────────────────────────────────────────── */
 
   // Before there is anywhere to put the data, the app is one screen: sign in,
-  // then pick a crew. Choosing to stay local skips all of it for good.
+  // then pick a Group. Choosing to stay local skips all of it for good.
   /** The way back out of local-only. The device's data stays put and is offered up after. */
   const leaveLocalMode = () => {
     localStorage.removeItem(MODE_KEY);
@@ -722,8 +724,8 @@ export default function Page() {
         status={cloud.status}
         error={cloud.error}
         onSignIn={() => void cloud.signIn()}
-        onStartCrew={(name) => void cloud.startCrew(name)}
-        onJoinCrew={(code) => void cloud.joinCrew(code)}
+        onStartGroup={(name) => void cloud.startGroup(name)}
+        onJoinGroup={(code) => void cloud.joinGroup(code)}
         onStayLocal={chooseLocal}
         onSignOut={() => void cloud.signOut()}
       />
@@ -990,25 +992,25 @@ export default function Page() {
       )}
 
       {modal === 'profiles' && usingCloud && (
-        <CrewSheet
-          crews={cloud.crews}
-          activeId={cloud.activeCrewId}
+        <GroupSheet
+          groups={cloud.groups}
+          activeId={cloud.activeGroupId}
           userName={
             (cloud.user?.user_metadata?.full_name as string | undefined) ??
             cloud.user?.email ??
             'you'
           }
           onSwitch={(id) => {
-            cloud.switchCrew(id);
+            cloud.switchGroup(id);
             setModal(null);
           }}
           onRename={(id, name) => void cloud.rename(id, name)}
           onCreate={(name) => {
-            void cloud.startCrew(name);
+            void cloud.startGroup(name);
             setModal(null);
           }}
           onJoin={(code) => {
-            void cloud.joinCrew(code);
+            void cloud.joinGroup(code);
             setModal(null);
           }}
           onSignOut={() => void cloud.signOut()}
@@ -1153,7 +1155,7 @@ export default function Page() {
         {shareMode
           ? `Shared party · ${readOnly ? 'view only' : 'you can add expenses'}`
           : usingCloud
-            ? `Synced to ${cloud.activeCrew?.name ?? 'your crew'} · ${historyList.length} in history`
+            ? `Synced to ${cloud.activeGroup?.name ?? 'your Group'} · ${historyList.length} in history`
             : `Saved on this device only · ${historyList.length} in history`}{' '}
         · amounts in {cur.code}
       </p>

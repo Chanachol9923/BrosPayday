@@ -22,14 +22,14 @@ Most split-the-bill tools hand you a number and expect you to trust it. This one
 
 There is no demo data and nothing seeded. What differs is where the data lives.
 
-**Signed in.** Sign in with Google, start or join a *crew*, and your parties follow
-you to any device — and everyone in the crew sees them, updating live as people add
+**Signed in.** Sign in with Google, start or join a *Group*, and your parties follow
+you to any device — and everyone in the Group sees them, updating live as people add
 what they bought. Photos go to private storage, cached locally so a party you have
 opened still works with no signal.
 
 **On this device only.** The original behaviour, still offered plainly on the first
 screen and still first-class: nothing uploaded, no account, no server. Anything saved
-this way is offered up as a copy the first time you join a crew — the local copy is
+this way is offered up as a copy the first time you join a Group — the local copy is
 kept either way.
 
 **Holding a link.** You do not need an account to open a party someone shared. A view
@@ -41,11 +41,11 @@ no keys configured the app simply runs local-only.
 
 ## Who can see what
 
-Every access question reduces to one: *are you in the crew that owns this?* That is
+Every access question reduces to one: *are you in the Group that owns this?* That is
 enforced in Postgres by row-level security, not in the client, so a key in a browser
 bundle grants nothing on its own. `supabase/tests/rls.sql` proves it by impersonating
 two users and checking what each can actually reach — a stranger sees no parties, no
-expenses, no people and not even the crew's name, and is refused on write. Run it with
+expenses, no people and not even the Group's name, and is refused on write. Run it with
 `npm run verify:rls`; it rolls back and leaves no trace.
 
 ## How a session works
@@ -117,7 +117,7 @@ Two different things share the same button.
 A **live link** exists only with cloud sync on. It stays in step with the party and
 comes in two roles — view, or add-what-you-bought. Writes from an edit link go through
 a database function that pins every change to the party the token was issued for, so
-holding a link is not the same as being in the crew. Links can be revoked.
+holding a link is not the same as being in the Group. Links can be revoked.
 
 A **snapshot link** needs no server at all: the whole party is packed into the URL
 fragment, which is never even sent to the host. Whoever opens it gets their own frozen
@@ -235,8 +235,8 @@ components/
 lib/
   cloud/            everything that talks to Postgres
     diff.ts         a changed state reduced to row-level writes
-    api.ts          crews, loading, applying, realtime, share links
-    useCloud.ts     session, crew selection, push and pull
+    api.ts          groups, loading, applying, realtime, share links
+    useCloud.ts     session, Group selection, push and pull
     photos.ts       the private storage bucket
   supabase/         the browser client, null when unconfigured
   split.ts          allocate() + computeSplit() + settle()  ← all the maths

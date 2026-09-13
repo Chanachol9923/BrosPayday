@@ -18,6 +18,8 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"a1110000-0000-4000-8000-0000000000a1","role":"authenticated"}';
 
 create temporary table ctx as select (public.create_group('Log crew')).id as gid;
+alter table ctx add column code text;
+update ctx set code = (select join_code from public.groups where id = ctx.gid);
 grant all on ctx to authenticated;
 
 insert into public.parties (id, group_id, title, party_date, currency_code, created_by)
@@ -100,7 +102,12 @@ where party_id = 'c3330000-0000-4000-8000-0000000000c3'
 -- ── who can reach it ──────────────────────────────────────────────────────
 set local role authenticated;
 set local request.jwt.claims = '{"sub":"b2220000-0000-4000-8000-0000000000b2","role":"authenticated"}';
-insert into public.group_members (group_id, user_id) select gid, 'b2220000-0000-4000-8000-0000000000b2' from ctx;
+do $$
+declare c record;
+begin
+  select * into c from ctx;
+  perform public.join_group_by_code(c.code);
+end $$;
 
 set local request.jwt.claims = '{"sub":"a1110000-0000-4000-8000-0000000000a1","role":"authenticated"}';
 insert into findings (check_name, passed, detail)

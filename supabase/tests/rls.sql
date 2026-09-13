@@ -31,8 +31,9 @@ set local request.jwt.claims = '{"sub":"aaaaaaaa-0000-4000-8000-000000000001","r
 insert into public.groups (id, name, join_code, created_by)
 values ('11111111-0000-4000-8000-000000000001', 'Probe crew', 'PRB123',
         'aaaaaaaa-0000-4000-8000-000000000001');
-insert into public.group_members (group_id, user_id, role)
-values ('11111111-0000-4000-8000-000000000001', 'aaaaaaaa-0000-4000-8000-000000000001', 'owner');
+-- Membership is not something you write directly, even for yourself: the two
+-- ways in are create_group and the join code, both of which run as the definer.
+select public.join_group_by_code('PRB123');
 
 insert into public.parties (id, group_id, title, party_date, currency_code, created_by)
 values ('22222222-0000-4000-8000-000000000001', '11111111-0000-4000-8000-000000000001',

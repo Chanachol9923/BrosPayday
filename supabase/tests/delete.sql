@@ -22,6 +22,8 @@ set local role authenticated;
 set local request.jwt.claims = '{"sub":"11110000-0000-4000-8000-000000000011","role":"authenticated"}';
 
 create temporary table ctx as select (public.create_group('Shared')).id as gid;
+alter table ctx add column code text;
+update ctx set code = (select join_code from public.groups where id = ctx.gid);
 grant all on ctx to authenticated;
 
 insert into public.parties (id, group_id, title, party_date, currency_code, created_by)
@@ -36,7 +38,12 @@ values ('55550000-0000-4000-8000-000000000055','33330000-0000-4000-8000-00000000
         '44440000-0000-4000-8000-000000000044',0,'11110000-0000-4000-8000-000000000011');
 
 set local request.jwt.claims = '{"sub":"22220000-0000-4000-8000-000000000022","role":"authenticated"}';
-insert into public.group_members (group_id, user_id) select gid, '22220000-0000-4000-8000-000000000022' from ctx;
+do $$
+declare c record;
+begin
+  select * into c from ctx;
+  perform public.join_group_by_code(c.code);
+end $$;
 
 insert into findings (check_name, passed, detail)
 select 'both can see it to begin with', count(*) = 1, count(*) || ' visible to B'

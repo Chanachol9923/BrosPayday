@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "verify": "tsc lib/split.ts lib/format.ts lib/types.ts lib/share.ts lib/store.ts lib/promptpay.ts lib/cloud/diff.ts --outDir .verify --rootDir lib --module commonjs --target es2020 --skipLibCheck --esModuleInterop && node tests/verify.js",
-    "verify:rls": "node scripts/run-sql.js supabase/tests/rls.sql && node scripts/run-sql.js supabase/tests/event_codes.sql && node scripts/run-sql.js supabase/tests/delete.sql && node scripts/run-sql.js supabase/tests/access_log.sql && node scripts/run-sql.js supabase/tests/repayments.sql && node scripts/run-sql.js supabase/tests/personal_amounts.sql"
+    "verify:rls": "node scripts/run-sql.js supabase/tests/rls.sql && node scripts/run-sql.js supabase/tests/event_codes.sql && node scripts/run-sql.js supabase/tests/delete.sql && node scripts/run-sql.js supabase/tests/access_log.sql && node scripts/run-sql.js supabase/tests/repayments.sql && node scripts/run-sql.js supabase/tests/personal_amounts.sql && node scripts/run-sql.js supabase/tests/permissions.sql"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

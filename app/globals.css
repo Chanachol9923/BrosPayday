@@ -1361,6 +1361,15 @@ input[readonly]::placeholder { color: var(--text-faint); }
 
 .share-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
 
+/* Why a link with no account behind it can only ever be one kind of link. */
+.share-note {
+  margin-top: 11px;
+  padding: 11px 12px;
+  border-radius: var(--radius);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
 .url-row { display: flex; align-items: center; gap: 8px; }
 .url-row .field { flex: 1; min-width: 0; }
 

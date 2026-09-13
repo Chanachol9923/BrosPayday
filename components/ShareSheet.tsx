@@ -7,7 +7,7 @@ import { partyLabel, relativeDate } from '@/lib/store';
 import { eventCodeUrl } from '@/lib/share';
 import { Sheet } from './Sheet';
 import type { ShareLink } from '@/lib/cloud/api';
-import { Copy, Eye, Link, Qr, Share, Trash } from './Icons';
+import { Cloud, Copy, Eye, Link, Qr, Share, Trash } from './Icons';
 
 export function ShareSheet({
   party,
@@ -22,6 +22,7 @@ export function ShareSheet({
   onCopySummary,
   onCopyText,
   onClose,
+  onSignIn,
 }: {
   party: Party;
   url: string;
@@ -38,6 +39,8 @@ export function ShareSheet({
   onCopySummary: () => void;
   onCopyText: (text: string, message: string) => void;
   onClose: () => void;
+  /** Given only when there is an account to sign in to and nobody is signed in. */
+  onSignIn?: () => void;
 }) {
   const [canNativeShare, setCanNativeShare] = useState(false);
   const urlRef = useRef<HTMLInputElement>(null);
@@ -85,24 +88,26 @@ export function ShareSheet({
         <div className="share-card-by">shared by {sharedBy}</div>
       </div>
 
-      {invites && (
-        <span className="label invite-label">Invite to Join Event (Can Edit)</span>
-      )}
+      <span className={invites ? 'label invite-label' : 'label'}>
+        {invites ? 'Invite to Join Event (Can Edit)' : 'View Only Link'}
+      </span>
 
       <div className="share-actions">
         {canNativeShare && (
           <button type="button" className="btn primary block" onClick={nativeShare}>
             <Share />
-            {invites ? 'Share Invite Link (Can Edit)' : 'Share…'}
+            {invites ? 'Share Invite Link (Can Edit)' : 'Share View Only Link'}
           </button>
         )}
         <button
           type="button"
           className={canNativeShare ? 'btn block' : 'btn primary block'}
-          onClick={() => onCopyText(primaryUrl, invites ? 'Invite link copied' : 'Link copied')}
+          onClick={() =>
+            onCopyText(primaryUrl, invites ? 'Invite link copied' : 'View link copied')
+          }
         >
-          <Link />
-          {invites ? 'Copy Invite Link (Can Edit)' : 'Copy link'}
+          {invites ? <Link /> : <Eye />}
+          {invites ? 'Copy Invite Link (Can Edit)' : 'Copy View Only Link'}
         </button>
         {viewUrl && (
           <button
@@ -119,6 +124,28 @@ export function ShareSheet({
           Copy summary for chat
         </button>
       </div>
+
+      {!invites && (
+        <div className="share-note">
+          <p className="hint" style={{ margin: 0 }}>
+            Without an account this is the only kind of link there is. It carries the numbers
+            inside itself — nothing is uploaded — and whoever opens it gets their own copy: they
+            can change nothing of yours, and nothing they do comes back to you.
+          </p>
+          {onSignIn && (
+            <>
+              <p className="hint" style={{ margin: '8px 0 9px' }}>
+                Sign in and you can also hand out a link people add their own spending to, and
+                watch it land on your screen.
+              </p>
+              <button type="button" className="btn sm primary" onClick={onSignIn}>
+                <Cloud size={15} />
+                Sign in for an editable link
+              </button>
+            </>
+          )}
+        </div>
+      )}
 
       {invites && (
         <p className="hint" style={{ marginTop: 9 }}>
@@ -224,7 +251,7 @@ export function ShareSheet({
       <div className="divider" />
 
       <label className="label" htmlFor="share-url">
-        A snapshot link
+        {invites ? 'A snapshot link' : 'That link in full'}
       </label>
       <div className="url-row">
         <input
@@ -249,8 +276,9 @@ export function ShareSheet({
       </div>
 
       <p className="hint" style={{ marginTop: 9 }}>
-        This one packs the whole event into the link itself, so nothing is uploaded. Whoever opens
-        it gets their own copy frozen at this moment; what they change never comes back to you.
+        {invites
+          ? 'This one packs the whole event into the link itself, so nothing is uploaded. Whoever opens it gets their own copy frozen at this moment; what they change never comes back to you — unlike the codes above, which stay live.'
+          : 'The same link the button above copies, in case you would rather read it than trust a button. It is frozen at this moment: share it again later and the new one carries the newer numbers.'}
       </p>
     </Sheet>
   );

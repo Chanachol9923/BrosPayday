@@ -1291,6 +1291,7 @@ export default function Page() {
           onCopySummary={copySummary}
           onCopyText={(text, message) => void write(text, message)}
           onClose={() => setModal(null)}
+          onSignIn={cloud.configured && !usingCloud ? leaveLocalMode : undefined}
         />
       )}
 

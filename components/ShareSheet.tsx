@@ -28,7 +28,7 @@ export function ShareSheet({
   /** Null when the app is local-only: there is no server to host a live link. */
   cloudLinks: ShareLink[] | null;
   onCreateLink: (role: 'view' | 'edit') => void;
-  onRevokeLink: (token: string) => void;
+  onRevokeLink: (role: 'view' | 'edit') => void;
   onCopyLink: () => void;
   onCopySummary: () => void;
   onCopyText: (text: string, message: string) => void;
@@ -89,64 +89,76 @@ export function ShareSheet({
       {cloudLinks && (
         <>
           <div className="divider" />
-          <span className="label">A live link to this event</span>
+          <span className="label">This event&rsquo;s codes</span>
           <p className="hint" style={{ marginBottom: 11 }}>
-            Unlike the snapshot below, these stay in step with the party. Nobody needs to sign in.
+            One code per event. Whoever has it sees this event and nothing else of yours — no
+            sign-in needed, and you can revoke it whenever.
           </p>
 
-          {cloudLinks.length > 0 && (
-            <div className="row-list" style={{ marginBottom: 11 }}>
-              {cloudLinks.map((link) => {
-                const url = `${typeof window === 'undefined' ? '' : window.location.origin}/?s=${link.token}`;
-                return (
-                  <div className="row-card" key={link.token}>
-                    <span className={link.role === 'edit' ? 'pill accent' : 'pill'}>
-                      {link.role === 'edit' ? 'Can edit' : 'View only'}
-                    </span>
-                    <span className="row-main">
-                      <span className="row-sub" style={{ marginTop: 0 }}>
-                        {url.replace(/^https?:\/\//, '')}
-                      </span>
-                    </span>
-                    <button
-                      type="button"
-                      className="btn sm"
-                      onClick={() => onCopyText(url, 'Link copied')}
-                      aria-label="Copy this link"
-                    >
-                      <Copy size={14} />
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-btn sm bare"
-                      onClick={() => {
-                        if (window.confirm('Revoke this link? Anyone using it loses access.')) {
-                          onRevokeLink(link.token);
-                        }
-                      }}
-                      aria-label="Revoke this link"
-                    >
-                      <Trash size={15} />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <div className="code-grid">
+            {(['view', 'edit'] as const).map((role) => {
+              const existing = cloudLinks.find((l) => l.role === role);
+              const label = role === 'edit' ? 'Can add expenses' : 'View only';
 
-          <div className="share-actions">
-            <button type="button" className="btn block" onClick={() => onCreateLink('view')}>
-              <Qr size={16} />
-              New view-only link
-            </button>
-            <button type="button" className="btn block" onClick={() => onCreateLink('edit')}>
-              <Share size={16} />
-              New link they can add to
-            </button>
+              return (
+                <div className={`code-card${role === 'edit' ? ' editable' : ''}`} key={role}>
+                  <span className="code-role">{label}</span>
+
+                  {existing ? (
+                    <>
+                      <button
+                        type="button"
+                        className="code-value num"
+                        onClick={() => onCopyText(existing.token, `${label} code copied`)}
+                        title="Copy this code"
+                      >
+                        {existing.token.slice(0, 4)}
+                        <span className="code-gap">-</span>
+                        {existing.token.slice(4)}
+                      </button>
+
+                      <div className="code-actions">
+                        <button
+                          type="button"
+                          className="btn sm"
+                          onClick={() =>
+                            onCopyText(
+                              `${typeof window === 'undefined' ? '' : window.location.origin}/?s=${existing.token}`,
+                              'Link copied',
+                            )
+                          }
+                        >
+                          <Copy size={13} />
+                          Link
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-btn sm bare"
+                          onClick={() => {
+                            if (window.confirm(`Revoke the ${label.toLowerCase()} code? Anyone using it loses access.`)) {
+                              onRevokeLink(role);
+                            }
+                          }}
+                          aria-label={`Revoke the ${label.toLowerCase()} code`}
+                        >
+                          <Trash size={14} />
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    <button type="button" className="btn sm block" onClick={() => onCreateLink(role)}>
+                      {role === 'edit' ? <Share size={14} /> : <Qr size={14} />}
+                      Make a code
+                    </button>
+                  )}
+                </div>
+              );
+            })}
           </div>
-          <p className="hint" style={{ marginTop: 9 }}>
-            An edit link lets someone add what they bought. It reaches this event and nothing else —
-            not your other events, not your Group.
+
+          <p className="hint" style={{ marginTop: 10 }}>
+            An <b>add</b> code lets someone put in what they bought. It reaches this event only —
+            not your other events, not your account.
           </p>
         </>
       )}

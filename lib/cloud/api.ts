@@ -250,7 +250,9 @@ export async function applyOps(ops: RowOp[], ctx: { groupId: string; userId: str
     switch (op.table) {
       case 'parties': {
         if (op.op === 'delete') {
-          const { error } = await db.from('parties').delete().eq('id', op.id);
+          // Deleting takes it out of your history, not everybody's. The row only
+          // leaves the database once the last person holding it lets go.
+          const { error } = await db.rpc('hide_event', { p_party_id: op.id });
           if (error) throw error;
           return;
         }
@@ -402,13 +404,29 @@ export function subscribeToGroup(groupId: string, onChange: () => void): () => v
 
 export type ShareLink = { token: string; role: 'view' | 'edit' };
 
-/** Long enough that guessing one is hopeless, short enough to paste in chat. */
-function makeToken(): string {
-  const bytes = new Uint8Array(18);
-  crypto.getRandomValues(bytes);
-  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+/**
+ * The code for this event and this role, made the first time it is asked for.
+ * One code per event per role: asking again returns the same one, so there is
+ * never a trail of codes nobody remembers handing out.
+ */
+export async function eventShareCode(partyId: string, role: 'view' | 'edit'): Promise<string> {
+  const { data, error } = await client().rpc('event_share_code', {
+    p_party_id: partyId,
+    p_role: role,
+  });
+  if (error) throw error;
+  return data as string;
 }
 
+export async function revokeEventShare(partyId: string, role: 'view' | 'edit'): Promise<void> {
+  const { error } = await client().rpc('revoke_event_share', {
+    p_party_id: partyId,
+    p_role: role,
+  });
+  if (error) throw error;
+}
+
+/** Which codes this event already has, without minting any. */
 export async function listShareLinks(partyId: string): Promise<ShareLink[]> {
   const { data, error } = await client()
     .from('party_shares')
@@ -418,28 +436,6 @@ export async function listShareLinks(partyId: string): Promise<ShareLink[]> {
 
   if (error) throw error;
   return (data ?? []) as ShareLink[];
-}
-
-export async function createShareLink(
-  partyId: string,
-  role: 'view' | 'edit',
-  userId: string,
-): Promise<ShareLink> {
-  const token = makeToken();
-  const { error } = await client()
-    .from('party_shares')
-    .insert({ token, party_id: partyId, role, created_by: userId });
-
-  if (error) throw error;
-  return { token, role };
-}
-
-export async function revokeShareLink(token: string): Promise<void> {
-  const { error } = await client()
-    .from('party_shares')
-    .update({ revoked_at: new Date().toISOString() })
-    .eq('token', token);
-  if (error) throw error;
 }
 
 export type SharedPartyView = { role: 'view' | 'edit'; party: Party };

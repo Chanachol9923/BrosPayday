@@ -61,14 +61,15 @@ import {
 } from '@/lib/cloud/photos';
 import { CloudGate, CloudLoading } from '@/components/CloudGate';
 import { AccountSheet } from '@/components/AccountSheet';
+import { OpenCodeSheet } from '@/components/OpenCodeSheet';
 import { diffParty } from '@/lib/cloud/diff';
 import type { ShareLink } from '@/lib/cloud/api';
 import {
   applyOps,
-  createShareLink,
+  eventShareCode,
   listShareLinks,
   readSharedParty,
-  revokeShareLink,
+  revokeEventShare,
   writeSharedParty,
 } from '@/lib/cloud/api';
 import { PartyHeader } from '@/components/PartyHeader';
@@ -93,6 +94,7 @@ import {
   Clock,
   Copy,
   Dots,
+  Inbox,
   Party as PartyIcon,
   Plus,
   Share,
@@ -100,7 +102,7 @@ import {
 } from '@/components/Icons';
 
 type SheetState = { draft: Item; isNew: boolean } | null;
-type Modal = null | 'profiles' | 'history' | 'presets' | 'share';
+type Modal = null | 'profiles' | 'history' | 'presets' | 'share' | 'opencode';
 
 const MODE_KEY = 'brospayday.mode';
 const MIGRATED_KEY = 'brospayday.migrated';
@@ -576,7 +578,10 @@ export default function Page() {
   };
 
   const discardParty = () => {
-    if (!window.confirm('Delete this event without saving it to history?')) return;
+    const message = usingCloud
+      ? 'Delete this event? It goes from your history only — anyone you shared it with keeps theirs.'
+      : 'Delete this event without saving it to history?';
+    if (!window.confirm(message)) return;
     void deletePhotos((party.photos ?? []).map((p) => p.id));
     setStore(setCurrent(store, profileId, newParty(party.currencyCode)));
     setSuggestions([]);
@@ -671,19 +676,21 @@ export default function Page() {
   };
 
   const addShareLink = async (role: 'view' | 'edit') => {
-    if (!usingCloud || !cloud.user) return;
+    if (!usingCloud) return;
     try {
-      const link = await createShareLink(party.id, role, cloud.user.id);
-      setCloudLinks((prev) => [...prev, link]);
-      await write(`${window.location.origin}/?s=${link.token}`, 'Link created and copied');
+      const token = await eventShareCode(party.id, role);
+      setCloudLinks((prev) =>
+        prev.some((l) => l.role === role) ? prev : [...prev, { token, role }],
+      );
+      await write(token, `${role === 'edit' ? 'Edit' : 'View'} code copied`);
     } catch {
-      setToast('Could not create that link');
+      setToast('Could not make a code for this event');
     }
   };
 
-  const dropShareLink = async (token: string) => {
-    setCloudLinks((prev) => prev.filter((l) => l.token !== token));
-    await revokeShareLink(token).catch(() => setToast('Could not revoke that link'));
+  const dropShareLink = async (role: 'view' | 'edit') => {
+    setCloudLinks((prev) => prev.filter((l) => l.role !== role));
+    await revokeEventShare(party.id, role).catch(() => setToast('Could not revoke that code'));
   };
 
   /* ── importing a shared party ────────────────────────────────── */
@@ -842,6 +849,15 @@ export default function Page() {
                     }}
                   >
                     <Bookmark /> Groups
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      setModal('opencode');
+                    }}
+                  >
+                    <Inbox /> Open with a code
                   </button>
                   <span className="sep" />
                   <button type="button" onClick={startNewParty}>
@@ -1021,12 +1037,7 @@ export default function Page() {
             cloud.switchGroup(id);
             setModal(null);
           }}
-          onJoin={(code) => {
-            void cloud.joinGroup(code);
-            setModal(null);
-          }}
           onSignOut={() => void cloud.signOut()}
-          onCopy={(text, message) => void write(text, message)}
           onClose={() => setModal(null)}
         />
       )}
@@ -1051,6 +1062,7 @@ export default function Page() {
           parties={historyList}
           onOpen={openFromHistory}
           onDelete={(id) => setStore((prev) => deleteFromHistory(prev, profileId, id))}
+          sharedDelete={usingCloud}
           onClose={() => setModal(null)}
         />
       )}
@@ -1067,6 +1079,8 @@ export default function Page() {
         />
       )}
 
+      {modal === 'opencode' && <OpenCodeSheet onClose={() => setModal(null)} />}
+
       {modal === 'share' && (
         <ShareSheet
           party={party}
@@ -1075,7 +1089,7 @@ export default function Page() {
           sharedBy={profile?.name ?? 'a friend'}
           cloudLinks={usingCloud ? cloudLinks : null}
           onCreateLink={(role) => void addShareLink(role)}
-          onRevokeLink={(token) => void dropShareLink(token)}
+          onRevokeLink={(role) => void dropShareLink(role)}
           onCopyLink={() => write(shareUrl, 'Link copied')}
           onCopySummary={copySummary}
           onCopyText={(text, message) => void write(text, message)}

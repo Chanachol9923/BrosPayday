@@ -1592,3 +1592,48 @@ table.grid .cellname { display: flex; align-items: center; gap: 7px; }
   color: var(--text);
   word-break: break-all;
 }
+
+/* ── one code per event ─────────────────────────────────────────── */
+.code-grid { display: grid; gap: 9px; }
+
+.code-card {
+  padding: 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+}
+.code-card.editable { border-color: color-mix(in srgb, var(--accent) 32%, var(--border)); }
+
+.code-role {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 7px;
+}
+.code-card.editable .code-role { color: var(--accent); }
+
+.code-value {
+  display: block;
+  width: 100%;
+  padding: 4px 0 8px;
+  border: 0;
+  background: transparent;
+  text-align: left;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 25px;
+  font-weight: 750;
+  letter-spacing: 0.1em;
+  color: var(--text);
+}
+.code-value:hover { color: var(--accent); }
+.code-gap { opacity: 0.35; margin: 0 2px; }
+
+.code-actions { display: flex; gap: 7px; }
+.code-actions .btn { flex: 1; }
+
+@media (min-width: 420px) {
+  .code-grid { grid-template-columns: 1fr 1fr; }
+}

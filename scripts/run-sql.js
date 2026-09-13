@@ -33,18 +33,29 @@ if (!process.env.SUPABASE_DB_URL && !process.env.DBURL) {
     const sets = Array.isArray(res) ? res : [res];
     const rows = sets.flatMap((r) => r.rows || []);
     if (rows.length === 0) { console.log('(no rows returned)'); return; }
+    // Check rows can appear anywhere in the output, since earlier statements in a
+    // script return rows of their own. Counting only the ones that are checks
+    // keeps a failure from hiding behind an unrelated result set.
     let bad = 0;
+    let checks = 0;
     for (const r of rows) {
       if (r.result !== undefined) {
+        checks++;
         if (String(r.result).trim() === 'FAIL') bad++;
         console.log('  ' + r.result + '  ' + String(r.check_name).padEnd(42) + '  ' + r.detail);
       } else {
         console.log('  ' + JSON.stringify(r));
       }
     }
-    if (rows[0] && rows[0].result !== undefined) {
-      console.log('\n  ' + (bad ? bad + ' FAILURE(S)' : 'ALL ' + rows.length + ' CHECKS PASSED'));
+
+    if (checks === 0) {
+      console.log('\n  NO CHECKS RAN — the script returned no result rows');
+      process.exitCode = 1;
+      return;
     }
+
+    console.log('\n  ' + (bad ? bad + ' FAILURE(S) of ' + checks : 'ALL ' + checks + ' CHECKS PASSED'));
+    if (bad) process.exitCode = 1;
   } finally {
     await client.end();
   }

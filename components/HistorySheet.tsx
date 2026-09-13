@@ -11,11 +11,14 @@ export function HistorySheet({
   parties,
   onOpen,
   onDelete,
+  sharedDelete = false,
   onClose,
 }: {
   parties: Party[];
   onOpen: (id: string) => void;
   onDelete: (id: string) => void;
+  /** True when other people may also hold this event, so a delete is yours alone. */
+  sharedDelete?: boolean;
   onClose: () => void;
 }) {
   const [query, setQuery] = useState('');
@@ -84,7 +87,10 @@ export function HistorySheet({
                       type="button"
                       className="icon-btn sm bare"
                       onClick={() => {
-                        if (window.confirm(`Delete “${partyLabel(p)}” for good?`)) onDelete(p.id);
+                        const message = sharedDelete
+                          ? `Remove “${partyLabel(p)}” from your history? Anyone you shared it with keeps theirs.`
+                          : `Delete “${partyLabel(p)}” for good?`;
+                        if (window.confirm(message)) onDelete(p.id);
                       }}
                       aria-label={`Delete ${partyLabel(p)}`}
                     >

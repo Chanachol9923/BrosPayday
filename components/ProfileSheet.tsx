@@ -55,8 +55,8 @@ export function ProfileSheet({
         <>
           <div className="signin-offer">
             <span className="signin-offer-text">
-              <b>Only on this device.</b> Sign in and your parties follow you to any phone or
-              laptop, and your Group sees them too. Nothing here is lost — it comes with you.
+              <b>Only on this device.</b> Sign in and your events follow you to any phone or
+              laptop, and you can share one with a code. Nothing here is lost — it comes with you.
             </span>
             <button type="button" className="btn primary block" onClick={onSignIn}>
               <Cloud size={16} />

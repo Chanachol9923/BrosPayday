@@ -167,16 +167,19 @@ export function eventCodeUrl(origin: string, token: string): string {
 }
 
 /**
- * The codes to show, given what the server listed and the edit code that was
- * just made sure of.
+ * The codes to show, given what the server listed and the codes just made sure of.
  *
- * Opening the sheet does two things at once: mints the edit code if it is
- * missing, and lists what exists. On a first share the listing can come back
- * before the minting lands, which would leave the invite button working while
- * the card below claimed there was no code yet. This folds the one we know about
- * back in, without ever duplicating a role.
+ * Opening the sheet does two things: mints the codes the buttons hand out, and
+ * lists what exists. If a listing were to come back without one that was just
+ * made, a button at the top would be working while the card below claimed there
+ * was no code yet — one link, described two ways, disagreeing. This folds the
+ * known ones back in, and never lets a role appear twice. What the server listed
+ * always wins; nothing here overrides it.
  */
-export function withEditCode(listed: EventCode[], editToken: string | null): EventCode[] {
-  if (!editToken || listed.some((l) => l.role === 'edit')) return listed;
-  return [...listed, { token: editToken, role: 'edit' }];
+export function withCodes(listed: EventCode[], minted: EventCode[]): EventCode[] {
+  const out = [...listed];
+  for (const code of minted) {
+    if (code.token && !out.some((l) => l.role === code.role)) out.push(code);
+  }
+  return out;
 }

@@ -7,7 +7,7 @@ import { partyLabel, relativeDate } from '@/lib/store';
 import { eventCodeUrl } from '@/lib/share';
 import { Sheet } from './Sheet';
 import type { ShareLink } from '@/lib/cloud/api';
-import { Copy, Link, Qr, Share, Trash } from './Icons';
+import { Copy, Eye, Link, Qr, Share, Trash } from './Icons';
 
 export function ShareSheet({
   party,
@@ -16,6 +16,7 @@ export function ShareSheet({
   sharedBy,
   cloudLinks,
   inviteUrl,
+  viewUrl,
   onCreateLink,
   onRevokeLink,
   onCopySummary,
@@ -30,6 +31,8 @@ export function ShareSheet({
   cloudLinks: ShareLink[] | null;
   /** The live edit-invite link, once this event has an edit code. */
   inviteUrl: string | null;
+  /** The live look-but-don't-touch link, once this event has a view code. */
+  viewUrl: string | null;
   onCreateLink: (role: 'view' | 'edit') => void;
   onRevokeLink: (role: 'view' | 'edit') => void;
   onCopySummary: () => void;
@@ -101,6 +104,16 @@ export function ShareSheet({
           <Link />
           {invites ? 'Copy Invite Link (Can Edit)' : 'Copy link'}
         </button>
+        {viewUrl && (
+          <button
+            type="button"
+            className="btn block"
+            onClick={() => onCopyText(viewUrl, 'View link copied')}
+          >
+            <Eye />
+            Copy View Only Link
+          </button>
+        )}
         <button type="button" className="btn block" onClick={onCopySummary}>
           <Copy />
           Copy summary for chat
@@ -109,10 +122,10 @@ export function ShareSheet({
 
       {invites && (
         <p className="hint" style={{ marginTop: 9 }}>
-          This is the edit code below, as a link — the same one, so revoking it there kills this
-          too. Whoever opens it can add what they bought, to this event only, and signs in first so
-          every change has a name on it. Send the view link instead if they should just look; that
-          one needs no account at all.
+          Both are the codes below, as links — the same ones, so revoking a code there kills its
+          link too. The invite lets someone add what they bought, to this event only, and they sign
+          in first so every change has a name on it. The view link opens for anyone, with no account
+          and nothing to press.
         </p>
       )}
 

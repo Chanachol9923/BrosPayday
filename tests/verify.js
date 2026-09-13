@@ -12,7 +12,7 @@ const {
 } = require('../.verify/split.js');
 const { parseAmount, formatMoney, rescaleAmount } = require('../.verify/format.js');
 const {
-  encodeParty, decodeParty, eventCodeUrl, withEditCode,
+  encodeParty, decodeParty, eventCodeUrl, withCodes,
 } = require('../.verify/share.js');
 const {
   applyPreset, archiveCurrent, deleteFromHistory, emptyStore, newParty,
@@ -476,38 +476,46 @@ section('event codes — one link, described twice');
     ? ok('a code becomes the address you actually send someone')
     : fail(`eventCodeUrl produced ${eventCodeUrl(origin, 'ABCD1234')}`);
 
-  // The share sheet mints the edit code and lists the codes at the same time. If
-  // the listing lands first, the button at the top would be handing out an invite
-  // while the card below said there was no code yet — two views of one thing,
-  // disagreeing.
-  const raced = withEditCode([{ token: 'VIEW0001', role: 'view' }], 'EDIT0001');
+  // The share sheet mints the codes its buttons hand out and lists the codes that
+  // exist. If a listing lands without one that was just made, a button at the top
+  // would be working while the card below said there was no code yet — two views
+  // of one thing, disagreeing.
+  const minted = [
+    { token: 'EDIT0001', role: 'edit' },
+    { token: 'VIEW0001', role: 'view' },
+  ];
+
+  const raced = withCodes([], minted);
   const edit = raced.find((l) => l.role === 'edit');
-  raced.length === 2 && edit && edit.token === 'EDIT0001'
-    ? ok('a code that was made but not yet listed still shows up on the card')
+  const view = raced.find((l) => l.role === 'view');
+  raced.length === 2 && edit.token === 'EDIT0001' && view.token === 'VIEW0001'
+    ? ok('codes that were made but not yet listed still show up on the cards')
     : fail(`reconciling produced ${JSON.stringify(raced)}`);
 
-  // and the two are then literally the same link
-  eventCodeUrl(origin, edit.token) === eventCodeUrl(origin, 'EDIT0001')
-    ? ok('the invite button and the edit card resolve to the same address')
-    : fail('the invite button and the edit card disagree');
+  // and each button then points at literally the same address as its card
+  eventCodeUrl(origin, edit.token) === eventCodeUrl(origin, 'EDIT0001') &&
+  eventCodeUrl(origin, view.token) === eventCodeUrl(origin, 'VIEW0001')
+    ? ok('each button and its card resolve to the same address')
+    : fail('a button and its card disagree');
 
   const listed = [
     { token: 'VIEW0001', role: 'view' },
     { token: 'EDIT0001', role: 'edit' },
   ];
-  JSON.stringify(withEditCode(listed, 'EDIT0001')) === JSON.stringify(listed)
+  JSON.stringify(withCodes(listed, minted)) === JSON.stringify(listed)
     ? ok('a code already listed is not added a second time')
-    : fail('reconciling duplicated the edit code');
+    : fail('reconciling duplicated a code');
 
   // the server can disagree with what we just minted; the server wins the listing
-  const different = withEditCode([{ token: 'OTHER999', role: 'edit' }], 'EDIT0001');
-  different.length === 1 && different[0].token === 'OTHER999'
+  const different = withCodes([{ token: 'OTHER999', role: 'edit' }], minted);
+  different.length === 2 && different[0].token === 'OTHER999'
     ? ok('what the server lists is left alone rather than second-guessed')
     : fail(`reconciling overrode the listing: ${JSON.stringify(different)}`);
 
-  JSON.stringify(withEditCode(listed, null)) === JSON.stringify(listed) &&
-  withEditCode([], null).length === 0
-    ? ok('with no edit code to fold in, the listing passes through untouched')
+  JSON.stringify(withCodes(listed, [])) === JSON.stringify(listed) &&
+  withCodes([], []).length === 0 &&
+  withCodes([], [{ token: null, role: 'view' }]).length === 0
+    ? ok('with nothing to fold in, the listing passes through untouched')
     : fail('reconciling invented a code out of nothing');
 }
 

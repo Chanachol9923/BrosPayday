@@ -41,7 +41,8 @@ import {
   updateCurrent,
 } from '@/lib/store';
 import type { SharedParty } from '@/lib/share';
-import { buildShareUrl, eventCodeUrl, readShareHash, withEditCode } from '@/lib/share';
+import { buildShareUrl, eventCodeUrl, readShareHash, withCodes } from '@/lib/share';
+import type { EventCode } from '@/lib/share';
 import {
   QR_ENCODE,
   deletePhoto,
@@ -139,6 +140,7 @@ export default function Page() {
   const [shareLoading, setShareLoading] = useState(false);
   const [cloudLinks, setCloudLinks] = useState<ShareLink[]>([]);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [viewUrl, setViewUrl] = useState<string | null>(null);
   const [access, setAccess] = useState<EventPerson[]>([]);
   const [signInFailed, setSignInFailed] = useState(false);
   const [badCode, setBadCode] = useState(false);
@@ -763,30 +765,37 @@ export default function Page() {
     setMenuOpen(false);
     setModal('share');
     setInviteUrl(null);
+    setViewUrl(null);
 
     if (!usingCloud) return;
 
-    // The sheet leads with "invite someone to join", so the edit code has to
-    // exist by the time it is shown. It is revocable, and asking again returns
-    // the same one, so this does not multiply codes.
+    // The sheet offers both links as buttons, so both codes have to exist by the
+    // time it is shown. They are revocable, and asking again returns the same one,
+    // so this does not multiply codes.
     //
-    // Listing comes after, not alongside: run in parallel and a first-time share
-    // can list the codes before this one has been made, leaving the button at the
-    // top handing out an invite while the card below says there is no code yet.
-    // They are the same link and must never look like two different things.
+    // Listing comes after the minting, not alongside it: run them together and a
+    // first-time share can list the codes before they have been made, leaving a
+    // button at the top handing out a link while the card below says there is no
+    // code yet. They are the same link and must never look like two different
+    // things.
     void (async () => {
-      let edit: string | null = null;
-      try {
-        edit = await eventShareCode(party.id, 'edit');
-        setInviteUrl(eventCodeUrl(window.location.origin, edit));
-      } catch {
-        setInviteUrl(null);
-      }
+      const [edit, view] = await Promise.all([
+        eventShareCode(party.id, 'edit').catch(() => null),
+        eventShareCode(party.id, 'view').catch(() => null),
+      ]);
+
+      const origin = window.location.origin;
+      setInviteUrl(edit ? eventCodeUrl(origin, edit) : null);
+      setViewUrl(view ? eventCodeUrl(origin, view) : null);
+
+      const minted: EventCode[] = [];
+      if (edit) minted.push({ token: edit, role: 'edit' });
+      if (view) minted.push({ token: view, role: 'view' });
 
       try {
-        setCloudLinks(withEditCode(await listShareLinks(party.id), edit));
+        setCloudLinks(withCodes(await listShareLinks(party.id), minted));
       } catch {
-        setCloudLinks(withEditCode([], edit));
+        setCloudLinks(withCodes([], minted));
       }
     })();
   };
@@ -807,6 +816,7 @@ export default function Page() {
   const dropShareLink = async (role: 'view' | 'edit') => {
     setCloudLinks((prev) => prev.filter((l) => l.role !== role));
     if (role === 'edit') setInviteUrl(null);
+    if (role === 'view') setViewUrl(null);
     await revokeEventShare(party.id, role).catch(() => setToast('Could not revoke that code'));
   };
 
@@ -1275,6 +1285,7 @@ export default function Page() {
           sharedBy={profile?.name ?? 'a friend'}
           cloudLinks={usingCloud ? cloudLinks : null}
           inviteUrl={inviteUrl}
+          viewUrl={viewUrl}
           onCreateLink={(role) => void addShareLink(role)}
           onRevokeLink={(role) => void dropShareLink(role)}
           onCopySummary={copySummary}

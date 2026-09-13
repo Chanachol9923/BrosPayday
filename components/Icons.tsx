@@ -70,12 +70,6 @@ export const Link = ({ size = 18 }: P) => (
   </svg>
 );
 
-export const Sparkle = ({ size = 18 }: P) => (
-  <svg {...base(size)}>
-    <path d="M12 3v4M12 17v4M3 12h4M17 12h4M6 6l2.5 2.5M15.5 15.5 18 18M18 6l-2.5 2.5M8.5 15.5 6 18" />
-  </svg>
-);
-
 export const Warn = ({ size = 16 }: P) => (
   <svg {...base(size)}>
     <path d="M12 9v4M12 17h.01" />

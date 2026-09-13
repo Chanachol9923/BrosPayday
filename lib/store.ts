@@ -1,6 +1,5 @@
 import type { Party, Payee, Person, PhotoMeta, Preset, Profile, Store } from './types';
 import { uid } from './format';
-import { exampleState } from './example';
 
 const KEY = 'brospayday.store.v2';
 const LEGACY_KEY = 'brospayday.state.v1';
@@ -59,12 +58,6 @@ export function newParty(currencyCode = 'THB'): Party {
     createdAt: now,
     updatedAt: now,
   };
-}
-
-export function sampleParty(): Party {
-  const base = exampleState();
-  const now = Date.now();
-  return { ...base, id: uid('party'), date: todayISO(), photos: [], createdAt: now, updatedAt: now };
 }
 
 /** A party is worth archiving once money has been entered. */

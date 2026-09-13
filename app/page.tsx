@@ -31,7 +31,6 @@ import {
   removePhotoMeta,
   renameProfile,
   reopenFromHistory,
-  sampleParty,
   saveStore,
   saveToHistory,
   setCurrent,
@@ -68,7 +67,6 @@ import {
   Party as PartyIcon,
   Plus,
   Share,
-  Sparkle,
   Trash,
 } from '@/components/Icons';
 
@@ -86,7 +84,6 @@ export default function Page() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [isSample, setIsSample] = useState(false);
   const [settled, setSettled] = useState<string[]>([]);
   const [memberId, setMemberId] = useState<string | null>(null);
   const [payFor, setPayFor] = useState<{ fromId: string; toId: string; amount: number } | null>(null);
@@ -107,17 +104,12 @@ export default function Page() {
       setIncoming(shared);
     }
 
-    const { store: saved, firstRun } = loadStore();
-    const pid = saved.activeProfileId;
-
-    if (firstRun) {
-      setStore(setCurrent(saved, pid, sampleParty()));
-      setIsSample(true);
-    } else {
-      const { store: next, archived } = startSession(saved, pid);
-      setStore(next);
-      if (archived) setToast(`“${partyLabel(archived)}” saved to history`);
-    }
+    // Nothing is seeded — a first visit and a later visit both begin on an
+    // empty sheet, and whatever was open last time goes to history.
+    const { store: saved } = loadStore();
+    const { store: next, archived } = startSession(saved, saved.activeProfileId);
+    setStore(next);
+    if (archived) setToast(`“${partyLabel(archived)}” saved to history`);
 
     setLoaded(true);
   }, []);
@@ -169,7 +161,6 @@ export default function Page() {
 
   /* ── party edits ─────────────────────────────────────────────── */
   const updateParty = useCallback((fn: (p: Party) => Party) => {
-    setIsSample(false);
     setStore((prev) => updateCurrent(prev, prev.activeProfileId, fn));
   }, []);
 
@@ -350,7 +341,6 @@ export default function Page() {
     const { store: next, archived } = startSession(switched, id);
     setStore(next);
     setSuggestions([]);
-    setIsSample(false);
     setModal(null);
     setToast(
       archived
@@ -362,7 +352,6 @@ export default function Page() {
   const doAddProfile = (name: string) => {
     setStore(addProfile(store, name));
     setSuggestions([]);
-    setIsSample(false);
     setModal(null);
     setToast(`${name} added`);
   };
@@ -371,7 +360,6 @@ export default function Page() {
   const openFromHistory = (id: string) => {
     setStore(reopenFromHistory(store, profileId, id));
     setSuggestions([]);
-    setIsSample(false);
     setModal(null);
     setView('setup');
     setToast('Back on the workbench');
@@ -381,7 +369,6 @@ export default function Page() {
     const keeping = isWorthKeeping(party);
     setStore(archiveCurrent(store, profileId));
     setSuggestions([]);
-    setIsSample(false);
     setMenuOpen(false);
     setView('setup');
     setToast(keeping ? 'Saved to history — fresh sheet ready' : 'Fresh sheet ready');
@@ -392,7 +379,6 @@ export default function Page() {
     void deletePhotos((party.photos ?? []).map((p) => p.id));
     setStore(setCurrent(store, profileId, newParty(party.currencyCode)));
     setSuggestions([]);
-    setIsSample(false);
     setMenuOpen(false);
     setView('setup');
   };
@@ -403,7 +389,6 @@ export default function Page() {
     if (!preset) return;
     setStore(updateCurrent(store, profileId, (p) => applyPreset(p, preset)));
     setSuggestions(preset.itemNames);
-    setIsSample(false);
     setModal(null);
     setToast(`${preset.name} — ${preset.people.length} people added`);
   };
@@ -490,7 +475,6 @@ export default function Page() {
     setStore(next);
     setIncoming(null);
     setSuggestions([]);
-    setIsSample(false);
     setView('setup');
     setToast('Shared party opened');
   };
@@ -500,15 +484,6 @@ export default function Page() {
     setStore(saveToHistory(store, profileId, incoming.party));
     setIncoming(null);
     setToast('Saved to history');
-  };
-
-  const loadSample = () => {
-    setStore(setCurrent(store, profileId, sampleParty()));
-    setSuggestions([]);
-    setIsSample(true);
-    setMenuOpen(false);
-    setView('setup');
-    setToast('Sample party loaded');
   };
 
   /* ── render ──────────────────────────────────────────────────── */
@@ -607,9 +582,6 @@ export default function Page() {
                   <button type="button" onClick={startNewParty}>
                     <Plus /> Save &amp; start new party
                   </button>
-                  <button type="button" onClick={loadSample}>
-                    <Sparkle /> Load sample party
-                  </button>
                   <button type="button" className="danger" onClick={discardParty}>
                     <Trash /> Delete this party
                   </button>
@@ -619,15 +591,6 @@ export default function Page() {
           </span>
         </div>
       </header>
-
-      {isSample && (
-        <div className="sample-bar">
-          <span>Showing a sample party so you can see how it works.</span>
-          <button type="button" className="btn sm" onClick={discardParty}>
-            Start fresh
-          </button>
-        </div>
-      )}
 
       <PartyHeader
         title={party.title}

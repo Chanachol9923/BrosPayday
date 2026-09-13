@@ -333,6 +333,9 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 
 .exp-amount { font-size: 15.5px; font-weight: 700; white-space: nowrap; }
 
+/* One "Add expense" per screen: the dock owns it on phones, the card on desktop. */
+.add-inline { display: none; margin-top: 12px; }
+
 .stack { display: flex; align-items: center; flex-shrink: 0; }
 .stack .av { margin-left: -7px; box-shadow: inset 0 0 0 1px hsl(var(--person-h) 45% 34%), 0 0 0 2px var(--surface-2); }
 .stack .av:first-child { margin-left: 0; }
@@ -571,19 +574,6 @@ table.grid .cellname { display: flex; align-items: center; gap: 7px; }
 .check-label { display: block; font-size: 13.5px; font-weight: 640; }
 .check-detail { display: block; font-size: 12.5px; color: var(--text-dim); margin-top: 2px; line-height: 1.45; }
 
-/* ── sample banner ─────────────────────────────────────────────── */
-.sample-bar {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-top: 12px;
-  padding: 9px 10px 9px 13px;
-  border-radius: var(--radius);
-  background: var(--accent-dim);
-  border: 1px solid color-mix(in srgb, var(--accent) 24%, transparent);
-}
-.sample-bar span { flex: 1; font-size: 13px; color: var(--text-dim); line-height: 1.4; }
-.sample-bar .btn { flex-shrink: 0; white-space: nowrap; }
 
 .replay { display: flex; flex-wrap: wrap; gap: 7px; }
 .replay-chip {
@@ -895,6 +885,7 @@ table.grid .cellname { display: flex; align-items: center; gap: 7px; }
   .topbar { margin: 0 -24px; padding: 12px 24px; }
   .switch { display: none; }
   .dock { display: none; }
+  .add-inline { display: inline-flex; }
 
   .columns {
     display: grid;

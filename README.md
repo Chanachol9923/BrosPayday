@@ -18,6 +18,12 @@ Most split-the-bill tools hand you a number and expect you to trust it. This one
 4. **Settling up** — which transfers clear it, plus a replay proving every balance lands on zero.
 5. **Automatic checks** — four invariants re-run on every change.
 
+## Nothing to start with
+
+There is no demo data, no seeded example and no account. The first time anyone opens
+BrosPayday they get an empty sheet, and everything they add stays on their own device.
+Sharing happens one way only: you send someone a link.
+
 ## How a session works
 
 Opening the site hands you a **clean sheet**, not last night's party — but pressing
@@ -199,9 +205,9 @@ lib/
   share.ts          the link codec
   types.ts          data model and currency table
   format.ts         money parsing and formatting
-  example.ts        the sample party
 tests/
   verify.js         the correctness suite
+  fixture.js        the hand-worked reference party the suite checks against
 ```
 
 All arithmetic lives in `lib/split.ts` and is integer-only — the UI never does money maths.

@@ -127,10 +127,10 @@ export function ExpenseList({
           </div>
         )}
 
+        {/* Hidden on phones, where the sticky dock already carries this action. */}
         <button
           type="button"
-          className="btn primary block"
-          style={{ marginTop: 12 }}
+          className="btn primary block add-inline"
           onClick={() => onAdd()}
           disabled={!canAdd}
         >

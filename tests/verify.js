@@ -8,14 +8,14 @@
  */
 
 const { computeSplit, allocate } = require('../.verify/split.js');
-const { exampleState } = require('../.verify/example.js');
 const { parseAmount, formatMoney, rescaleAmount } = require('../.verify/format.js');
 const { encodeParty, decodeParty } = require('../.verify/share.js');
 const {
   applyPreset, archiveCurrent, deleteFromHistory, emptyStore, newParty,
-  presetFromParty, referencedPhotoIds, reopenFromHistory, sampleParty,
+  presetFromParty, referencedPhotoIds, reopenFromHistory,
   setPayee, payeeFor, hasPaymentDetails, addPhotoMeta, updateCurrent,
 } = require('../.verify/store.js');
+const { referenceParty } = require('./fixture.js');
 const {
   buildPromptPayPayload, crc16, parsePromptPayId, parseTlv, verifyPromptPayPayload,
 } = require('../.verify/promptpay.js');
@@ -241,7 +241,7 @@ section('money — parsing, display, currency changes');
 
 section('share links — round trip');
 {
-  const original = sampleParty();
+  const original = referenceParty();
   const incoming = decodeParty(encodeParty(original, 'Somchai'));
   const restored = incoming && incoming.party;
 
@@ -303,7 +303,7 @@ section('history and presets');
     : fail('an empty party was archived');
 
   // once money is on it, it gets kept
-  const withParty = updateCurrent(store, pid, () => ({ ...sampleParty(), title: 'Night one' }));
+  const withParty = updateCurrent(store, pid, () => ({ ...referenceParty(), id: 'night_one', title: 'Night one' }));
   const archivedStore = archiveCurrent(withParty, pid);
   const kept = archivedStore.history[pid][0];
 
@@ -312,7 +312,7 @@ section('history and presets');
     : fail('archiveCurrent did not swap the party out');
 
   // reopening takes it back out rather than duplicating it
-  const second = updateCurrent(archivedStore, pid, () => ({ ...sampleParty(), title: 'Night two' }));
+  const second = updateCurrent(archivedStore, pid, () => ({ ...referenceParty(), id: 'night_two', title: 'Night two' }));
   const reopened = reopenFromHistory(second, pid, kept.id);
 
   reopened.current[pid].title === 'Night one' &&
@@ -326,7 +326,7 @@ section('history and presets');
     : fail('delete from history misbehaved');
 
   // presets: the crew and the usual names, never the amounts
-  const source = sampleParty();
+  const source = referenceParty();
   const preset = presetFromParty(source, 'Bros');
   const names = JSON.stringify(preset.people);
 
@@ -354,7 +354,7 @@ section('history and presets');
 
 section('the party this was built for');
 {
-  const st = sampleParty();
+  const st = referenceParty();
   const r = computeSplit(st);
   const nm = (id) => st.people.find((p) => p.id === id).name;
   const as = (rec) => Object.fromEntries(st.people.map((p) => [p.name, rec[p.id] / 100]));
@@ -381,7 +381,7 @@ section('what the screen actually shows');
 {
   // The components format straight off computeSplit, so pinning the rendered strings
   // for the reference party catches a display change quietly corrupting the numbers.
-  const st = sampleParty();
+  const st = referenceParty();
   const r = computeSplit(st);
   const money = (v) => formatMoney(v, st.currencyCode);
   const nameOf = (id) => st.people.find((p) => p.id === id).name;

@@ -21,7 +21,6 @@ export type CloudStatus =
   | 'off' // no keys configured — the app is local-only, exactly as before
   | 'loading'
   | 'signed-out'
-  | 'no-group'
   | 'ready';
 
 const LAST_GROUP_KEY = 'brospayday.group';
@@ -82,16 +81,28 @@ export function useCloud(store: Store, setStore: (next: Store | ((prev: Store) =
     };
   }, []);
 
-  /* ── which groups am I in ───────────────────────────────────────── */
+  /* ── where your events live ─────────────────────────────────────── */
   const refreshGroups = useCallback(async () => {
     if (!user) return;
     try {
-      const found = await listGroups();
-      setGroups(found);
+      let found = await listGroups();
 
+      // Nobody should have to answer "which workspace?" before they can add an
+      // expense. The first sign-in quietly gets one; sharing it with other people
+      // is a thing you go looking for, not a gate you walk through.
       if (found.length === 0) {
-        setActiveGroupId(null);
-        setStatus('no-group');
+        const name =
+          (user.user_metadata?.full_name as string | undefined)?.split(' ')[0] ??
+          user.email?.split('@')[0] ??
+          'My';
+        await createGroup(`${name}'s events`);
+        found = await listGroups();
+      }
+
+      setGroups(found);
+      if (found.length === 0) {
+        setError('Could not set up your events.');
+        setStatus('signed-out');
         return;
       }
 
@@ -99,7 +110,7 @@ export function useCloud(store: Store, setStore: (next: Store | ((prev: Store) =
       const pick = found.find((c) => c.id === remembered)?.id ?? found[0].id;
       setActiveGroupId(pick);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Could not load your Groups.');
+      setError(e instanceof Error ? e.message : 'Could not load your events.');
       setStatus('signed-out');
     }
   }, [user]);
@@ -224,12 +235,12 @@ export function useCloud(store: Store, setStore: (next: Store | ((prev: Store) =
     async (name: string) => {
       if (!user) return;
       try {
-        const group = await createGroup(name, user.id);
+        const group = await createGroup(name);
         setGroups((prev) => [...prev, group]);
         setActiveGroupId(group.id);
         setStatus('loading');
       } catch (e) {
-        setError(e instanceof Error ? e.message : 'Could not start that Group.');
+        setError(e instanceof Error ? e.message : 'Could not create that workspace.');
       }
     },
     [user],
@@ -243,7 +254,7 @@ export function useCloud(store: Store, setStore: (next: Store | ((prev: Store) =
       setActiveGroupId(groupId);
       setStatus('loading');
     } catch {
-      setError('No Group has that code.');
+      setError('Nothing found for that code.');
     }
   }, []);
 

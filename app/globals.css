@@ -1572,3 +1572,6 @@ table.grid .cellname { display: flex; align-items: center; gap: 7px; }
   color: var(--text-dim);
 }
 .signin-offer-text b { color: var(--text); }
+
+/* ── account sheet ──────────────────────────────────────────────── */
+.account-head { display: flex; align-items: center; gap: 12px; }

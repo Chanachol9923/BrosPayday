@@ -41,7 +41,7 @@ export async function listGroups(): Promise<CloudGroup[]> {
   return (data ?? []).map((g) => ({ id: g.id, name: g.name, joinCode: g.join_code }));
 }
 
-export async function createGroup(name: string, _userId?: string): Promise<CloudGroup> {
+export async function createGroup(name: string): Promise<CloudGroup> {
   // One call, server side: the group and the creator's membership are created
   // together. Doing it as two client statements meant the insert's RETURNING had
   // to pass a select policy that asks whether you are a member — which you were

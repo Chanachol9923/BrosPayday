@@ -35,16 +35,16 @@ export function PresetSheet({
   };
 
   return (
-    <Sheet title="Presets" onClose={onClose}>
+    <Sheet title="Groups" onClose={onClose}>
       <p className="hint" style={{ marginBottom: 13 }}>
-        A preset is your usual line-up saved under a name. Tap one and everybody is added at once —
-        handy when every visit starts with a blank sheet.
+        A Group is a line-up you save under a name — the bros, the flatmates, the office lot. Tap one
+        and everybody is added at once, which is what makes a blank sheet quick to fill.
       </p>
 
       {presets.length === 0 ? (
         <div className="empty">
-          <strong>No presets yet</strong>
-          Add the people for an event, then save them below as a preset you can reuse.
+          <strong>No Groups yet</strong>
+          Add the people for an event, then save them below as a Group you can reuse.
         </div>
       ) : (
         <div className="row-list">
@@ -54,7 +54,7 @@ export function PresetSheet({
                 type="button"
                 className="row-open"
                 onClick={() => onApply(p.id)}
-                aria-label={`Apply preset ${p.name}`}
+                aria-label={`Use Group ${p.name}`}
               >
                 <span className="row-main">
                   <input
@@ -62,7 +62,7 @@ export function PresetSheet({
                     value={p.name}
                     onChange={(e) => onRename(p.id, e.target.value)}
                     onClick={(e) => e.stopPropagation()}
-                    aria-label={`Name of preset ${p.name}`}
+                    aria-label={`Name of Group ${p.name}`}
                     spellCheck={false}
                   />
                   <span className="row-sub">
@@ -77,9 +77,9 @@ export function PresetSheet({
                 type="button"
                 className="icon-btn sm bare"
                 onClick={() => {
-                  if (window.confirm(`Delete the preset “${p.name}”?`)) onDelete(p.id);
+                  if (window.confirm(`Delete the Group “${p.name}”?`)) onDelete(p.id);
                 }}
-                aria-label={`Delete preset ${p.name}`}
+                aria-label={`Delete Group ${p.name}`}
               >
                 <Trash size={15} />
               </button>
@@ -91,7 +91,7 @@ export function PresetSheet({
       <div className="divider" />
 
       <label className="label" htmlFor="preset-name">
-        Save this event as a preset
+        Save these people as a Group
       </label>
 
       {canSave ? (
@@ -114,7 +114,7 @@ export function PresetSheet({
             />
             <button type="button" className="btn primary" onClick={commit} disabled={!draft.trim()}>
               <Plus size={18} />
-              <span className="sr">Save preset</span>
+              <span className="sr">Save Group</span>
             </button>
           </div>
           <p className="hint" style={{ marginTop: 8, display: 'flex', gap: 8 }}>
@@ -123,7 +123,7 @@ export function PresetSheet({
             </span>
             Saves {party.people.map((p) => p.name).join(', ')}
             {party.items.length > 0 && ` and ${party.items.length} expense names`}. Amounts are
-            never stored in a preset.
+            never stored in a Group.
           </p>
         </>
       ) : (

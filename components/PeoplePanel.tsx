@@ -71,7 +71,7 @@ export function PeoplePanel({
             style={{ marginLeft: 'auto' }}
           >
             <Bookmark size={14} />
-            Presets
+            Groups
           </button>
         )}
       </div>
@@ -166,7 +166,7 @@ export function PeoplePanel({
         {!readOnly && people.length === 0 && (
           <p className="hint" style={{ marginTop: 9 }}>
             Tip — type several names separated by commas to add them all at once. Save the people you
-            split with often as a preset and it&rsquo;s one tap next time.
+            split with often as a Group and it&rsquo;s one tap next time.
           </p>
         )}
       </div>

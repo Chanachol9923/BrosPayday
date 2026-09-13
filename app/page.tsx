@@ -60,7 +60,7 @@ import {
   uploadPhoto,
 } from '@/lib/cloud/photos';
 import { CloudGate, CloudLoading } from '@/components/CloudGate';
-import { GroupSheet } from '@/components/GroupSheet';
+import { AccountSheet } from '@/components/AccountSheet';
 import { diffParty } from '@/lib/cloud/diff';
 import type { ShareLink } from '@/lib/cloud/api';
 import {
@@ -251,9 +251,9 @@ export default function Page() {
       .catch(() => setToast('Could not copy those up — they are still on this device'));
   }, [usingCloud, cloud.status, cloud.activeGroupId, cloud.user, cloud.activeGroup]);
 
-  // An invite link drops someone straight into the right Group.
+  // An invite link puts you into someone else's events.
   useEffect(() => {
-    if (!usingCloud || cloud.status !== 'no-group') return;
+    if (!usingCloud || cloud.status !== 'ready') return;
     // `crew` is the older spelling; links already sent out keep working.
     const params = new URLSearchParams(window.location.search);
     const code = params.get('group') ?? params.get('crew');
@@ -284,6 +284,12 @@ export default function Page() {
   const party = store.current[profileId];
   const historyList = store.history[profileId] ?? [];
   const presets = store.presets[profileId] ?? [];
+
+  const chipName = usingCloud
+    ? ((cloud.user?.user_metadata?.full_name as string | undefined)?.split(' ')[0] ??
+      cloud.user?.email?.split('@')[0] ??
+      'You')
+    : (profile?.name ?? '?');
 
   const result = useMemo(() => computeSplit(party), [party]);
 
@@ -581,7 +587,7 @@ export default function Page() {
 
   const savePreset = (name: string) => {
     setStore(addPreset(store, profileId, presetFromParty(party, name)));
-    setToast(`Preset “${name}” saved`);
+    setToast(`Group “${name}” saved`);
   };
 
   /* ── sharing ─────────────────────────────────────────────────── */
@@ -721,13 +727,9 @@ export default function Page() {
     }
     return (
       <CloudGate
-        status={cloud.status}
         error={cloud.error}
         onSignIn={() => void cloud.signIn()}
-        onStartGroup={(name) => void cloud.startGroup(name)}
-        onJoinGroup={(code) => void cloud.joinGroup(code)}
         onStayLocal={chooseLocal}
-        onSignOut={() => void cloud.signOut()}
       />
     );
   }
@@ -765,8 +767,8 @@ export default function Page() {
             onClick={() => setModal('profiles')}
             aria-label={`Signed in as ${profile?.name ?? 'user'} — switch user`}
           >
-            <Avatar name={profile?.name ?? '?'} hue={hueForIndex(profileIndex)} size="xs" />
-            <span className="profile-name">{profile?.name}</span>
+            <Avatar name={chipName} hue={hueForIndex(usingCloud ? 0 : profileIndex)} size="xs" />
+            <span className="profile-name">{chipName}</span>
             {usingCloud && cloud.syncing && <span className="sync-dot" aria-label="saving" />}
             <Chevron size={14} />
           </button>
@@ -825,7 +827,7 @@ export default function Page() {
                       setModal('presets');
                     }}
                   >
-                    <Bookmark /> Presets
+                    <Bookmark /> Groups
                   </button>
                   <span className="sep" />
                   <button type="button" onClick={startNewParty}>
@@ -992,21 +994,17 @@ export default function Page() {
       )}
 
       {modal === 'profiles' && usingCloud && (
-        <GroupSheet
-          groups={cloud.groups}
-          activeId={cloud.activeGroupId}
+        <AccountSheet
           userName={
             (cloud.user?.user_metadata?.full_name as string | undefined) ??
-            cloud.user?.email ??
-            'you'
+            cloud.user?.email?.split('@')[0] ??
+            'You'
           }
+          userEmail={cloud.user?.email ?? ''}
+          spaces={cloud.groups}
+          activeId={cloud.activeGroupId}
           onSwitch={(id) => {
             cloud.switchGroup(id);
-            setModal(null);
-          }}
-          onRename={(id, name) => void cloud.rename(id, name)}
-          onCreate={(name) => {
-            void cloud.startGroup(name);
             setModal(null);
           }}
           onJoin={(code) => {
@@ -1155,7 +1153,7 @@ export default function Page() {
         {shareMode
           ? `Shared party · ${readOnly ? 'view only' : 'you can add expenses'}`
           : usingCloud
-            ? `Synced to ${cloud.activeGroup?.name ?? 'your Group'} · ${historyList.length} in history`
+            ? `Synced to your account · ${historyList.length} in history`
             : `Saved on this device only · ${historyList.length} in history`}{' '}
         · amounts in {cur.code}
       </p>

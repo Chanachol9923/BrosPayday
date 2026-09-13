@@ -1,8 +1,6 @@
 'use client';
 
-import { useState } from 'react';
-import type { CloudStatus } from '@/lib/cloud/useCloud';
-import { Party as PartyIcon, Plus, Users, Warn } from './Icons';
+import { Party as PartyIcon, Warn } from './Icons';
 
 function GoogleMark() {
   return (
@@ -16,33 +14,19 @@ function GoogleMark() {
 }
 
 /**
- * What you see before there is anywhere to put your data: sign in, then either
- * start a Group or join one. Staying local is always an option — the app has never
- * needed an account and still does not.
+ * The one screen before the app: sign in, or say you would rather not. There is
+ * deliberately nothing else here — no workspace to name, no code to enter. Signing
+ * in creates somewhere for your events to live without asking.
  */
 export function CloudGate({
-  status,
   error,
   onSignIn,
-  onStartGroup,
-  onJoinGroup,
   onStayLocal,
-  onSignOut,
 }: {
-  status: CloudStatus;
   error: string | null;
   onSignIn: () => void;
-  onStartGroup: (name: string) => void;
-  onJoinGroup: (code: string) => void;
   onStayLocal: () => void;
-  onSignOut: () => void;
 }) {
-  const [groupName, setGroupName] = useState('');
-  const [joinCode, setJoinCode] = useState('');
-  const [busy, setBusy] = useState(false);
-
-  const signedOut = status === 'signed-out';
-
   return (
     <div className="gate">
       <div className="gate-card">
@@ -54,107 +38,24 @@ export function CloudGate({
           Bros<span>Payday</span>
         </h1>
 
-        {signedOut ? (
-          <>
-            <p className="gate-lede">
-              Sign in and your events follow you to any phone or laptop, and the people in your
-              Group see them too.
-            </p>
+        <p className="gate-lede">
+          Sign in and your events follow you to any phone or laptop — and you can let the people
+          you split with see them too.
+        </p>
 
-            <button type="button" className="btn google block" onClick={onSignIn}>
-              <GoogleMark />
-              Continue with Google
-            </button>
+        <button type="button" className="btn google block" onClick={onSignIn}>
+          <GoogleMark />
+          Continue with Google
+        </button>
 
-            <button type="button" className="btn ghost block" onClick={onStayLocal} style={{ marginTop: 9 }}>
-              Keep it on this device only
-            </button>
+        <button type="button" className="btn ghost block" onClick={onStayLocal} style={{ marginTop: 9 }}>
+          Keep it on this device only
+        </button>
 
-            <p className="hint gate-note">
-              Staying local works exactly as before — nothing is uploaded, and you can still send
-              someone a link. You can sign in later without losing any of it.
-            </p>
-          </>
-        ) : (
-          <>
-            <p className="gate-lede">
-              One more step — a Group is the people you split bills with. Everyone in it sees the same
-              events.
-            </p>
-
-            <div className="gate-block">
-              <span className="label">Start a new Group</span>
-              <div className="add-person">
-                <input
-                  className="field"
-                  value={groupName}
-                  onChange={(e) => setGroupName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && groupName.trim()) {
-                      setBusy(true);
-                      onStartGroup(groupName.trim());
-                    }
-                  }}
-                  placeholder="The bros, Flat 3, Office lunch…"
-                  aria-label="New Group name"
-                  autoComplete="off"
-                />
-                <button
-                  type="button"
-                  className="btn primary"
-                  disabled={!groupName.trim() || busy}
-                  onClick={() => {
-                    setBusy(true);
-                    onStartGroup(groupName.trim());
-                  }}
-                >
-                  <Plus size={18} />
-                  <span className="sr">Create Group</span>
-                </button>
-              </div>
-            </div>
-
-            <div className="gate-or">or</div>
-
-            <div className="gate-block">
-              <span className="label">Join one with a code</span>
-              <div className="add-person">
-                <input
-                  className="field code-field"
-                  value={joinCode}
-                  onChange={(e) => setJoinCode(e.target.value.toUpperCase())}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' && joinCode.trim()) {
-                      setBusy(true);
-                      onJoinGroup(joinCode.trim());
-                    }
-                  }}
-                  placeholder="ABC123"
-                  maxLength={6}
-                  aria-label="Group join code"
-                  autoComplete="off"
-                  spellCheck={false}
-                />
-                <button
-                  type="button"
-                  className="btn"
-                  disabled={joinCode.trim().length < 4 || busy}
-                  onClick={() => {
-                    setBusy(true);
-                    onJoinGroup(joinCode.trim());
-                  }}
-                >
-                  <Users size={18} />
-                  <span className="sr">Join Group</span>
-                </button>
-              </div>
-            </div>
-
-            <button type="button" className="btn ghost block" onClick={onSignOut} style={{ marginTop: 16 }}>
-              Sign out
-            </button>
-          </>
-        )}
+        <p className="hint gate-note">
+          Staying local works exactly as before — nothing is uploaded, and you can still send
+          someone a link. You can sign in later without losing any of it.
+        </p>
 
         {error && (
           <p className="gate-error">

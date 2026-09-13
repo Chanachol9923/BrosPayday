@@ -21,6 +21,17 @@ export function toMajor(minor: number, decimals: number): number {
   return minor / 10 ** decimals;
 }
 
+/**
+ * Convert a stored minor-unit amount between currencies of differing precision,
+ * keeping the number the user actually typed. ฿400 (40000 satang) must become
+ * ¥400, not ¥40,000.
+ */
+export function rescaleAmount(value: number, fromDecimals: number, toDecimals: number): number {
+  if (fromDecimals === toDecimals) return value;
+  const factor = 10 ** Math.abs(toDecimals - fromDecimals);
+  return toDecimals > fromDecimals ? value * factor : Math.round(value / factor);
+}
+
 /** Editable text for an input field — plain, no grouping separators. */
 export function amountToInput(minor: number, decimals: number): string {
   if (minor === 0) return '';

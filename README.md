@@ -45,6 +45,29 @@ npm run dev
 
 Open http://localhost:3000.
 
+## Verifying the maths
+
+Don't take the split on faith — run it:
+
+```bash
+npm run verify
+```
+
+`tests/verify.js` generates ~228,000 splits and 20,000 random parties from a fixed
+seed and asserts the invariants that actually matter:
+
+- every expense's parts sum to **exactly** the bill, with nobody more than one minor
+  unit above anyone else, and a larger share never paying less than a smaller one;
+- the sum of everyone's share equals the total spent;
+- all balances cancel to zero;
+- the settlement never needs more than *people − 1* transfers, none of them zero or
+  negative or self-directed, and replaying them leaves **every** person on zero.
+
+It also pins the edge cases a real user can reach — the payer being deleted, an
+expense nobody shares, a person listed twice by a hand-edited share link, `10 ÷ 3`,
+one person treating another, switching between 2-decimal and 0-decimal currencies,
+and a share link round trip.
+
 ## Deploy to Vercel
 
 This is a stock Next.js App Router project — no environment variables, no database, no

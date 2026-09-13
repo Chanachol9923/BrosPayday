@@ -101,7 +101,19 @@ export function computeSplit(state: EventState): SplitResult {
 
   for (const item of items) {
     const itemProblems: string[] = [];
-    const bearers = item.bearerIds.map((id) => byId.get(id)).filter((p): p is Person => !!p);
+
+    // Unknown ids are dropped and repeats collapsed: a hand-edited share link or a
+    // stale saved party must never let one person be charged for the same item twice.
+    const bearers: Person[] = [];
+    const seenBearer = new Set<string>();
+    for (const id of item.bearerIds) {
+      const person = byId.get(id);
+      if (person && !seenBearer.has(person.id)) {
+        seenBearer.add(person.id);
+        bearers.push(person);
+      }
+    }
+
     const payer = item.payerId ? byId.get(item.payerId) ?? null : null;
 
     if (!payer) itemProblems.push('No one is marked as having paid for this.');

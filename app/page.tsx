@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { EventState, Item } from '@/lib/types';
 import { CURRENCIES, currencyOf } from '@/lib/types';
 import { computeSplit } from '@/lib/split';
-import { formatMoney, uid } from '@/lib/format';
+import { formatMoney, rescaleAmount, uid } from '@/lib/format';
 import { hueForIndex } from '@/lib/colors';
 import { blankState, exampleState } from '@/lib/example';
 import { decodeState, encodeState, loadLocal, saveLocal } from '@/lib/share';
@@ -115,6 +115,24 @@ export default function Page() {
         };
       }),
     }));
+
+  /**
+   * Amounts live in minor units, so moving between a 2-decimal currency and a
+   * 0-decimal one has to rescale them — otherwise ฿400 would silently reappear
+   * as ¥40,000.
+   */
+  const changeCurrency = (code: string) =>
+    edit((prev) => {
+      const from = currencyOf(prev.currencyCode).decimals;
+      const to = currencyOf(code).decimals;
+      if (from === to) return { ...prev, currencyCode: code };
+
+      return {
+        ...prev,
+        currencyCode: code,
+        items: prev.items.map((i) => ({ ...i, amount: rescaleAmount(i.amount, from, to) })),
+      };
+    });
 
   const openNewExpense = () => {
     const lastPayer = state.items.length > 0 ? state.items[state.items.length - 1].payerId : null;
@@ -279,9 +297,7 @@ export default function Page() {
                     <select
                       className="cur-select"
                       value={state.currencyCode}
-                      onChange={(e) =>
-                        edit((prev) => ({ ...prev, currencyCode: e.target.value }))
-                      }
+                      onChange={(e) => changeCurrency(e.target.value)}
                       aria-label="Currency"
                     >
                       {CURRENCIES.map((c) => (

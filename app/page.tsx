@@ -129,6 +129,7 @@ export default function Page() {
   const [shareMode, setShareMode] = useState<{ token: string; role: 'view' | 'edit' } | null>(null);
   const [shareLoading, setShareLoading] = useState(false);
   const [cloudLinks, setCloudLinks] = useState<ShareLink[]>([]);
+  const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [signInFailed, setSignInFailed] = useState(false);
   const [badCode, setBadCode] = useState(false);
   const sharedBase = useRef<Party | null>(null);
@@ -674,11 +675,20 @@ export default function Page() {
     setShareUrl(buildShareUrl(party, profile?.name));
     setMenuOpen(false);
     setModal('share');
-    if (usingCloud) {
-      void listShareLinks(party.id)
-        .then(setCloudLinks)
-        .catch(() => setCloudLinks([]));
-    }
+    setInviteUrl(null);
+
+    if (!usingCloud) return;
+
+    // The sheet leads with "invite someone to join", so the edit code has to
+    // exist by the time it is shown. It is revocable, and asking again returns
+    // the same one, so this does not multiply codes.
+    void eventShareCode(party.id, 'edit')
+      .then((token) => setInviteUrl(`${window.location.origin}/?s=${token}`))
+      .catch(() => setInviteUrl(null));
+
+    void listShareLinks(party.id)
+      .then(setCloudLinks)
+      .catch(() => setCloudLinks([]));
   };
 
   const addShareLink = async (role: 'view' | 'edit') => {
@@ -696,6 +706,7 @@ export default function Page() {
 
   const dropShareLink = async (role: 'view' | 'edit') => {
     setCloudLinks((prev) => prev.filter((l) => l.role !== role));
+    if (role === 'edit') setInviteUrl(null);
     await revokeEventShare(party.id, role).catch(() => setToast('Could not revoke that code'));
   };
 
@@ -836,7 +847,7 @@ export default function Page() {
                     </select>
                   </span>
                   <span className="sep" />
-                  <button type="button" onClick={openShare}>
+                  <button type="button" className="accent" onClick={openShare}>
                     <Share /> Share this event
                   </button>
                   <button
@@ -864,7 +875,7 @@ export default function Page() {
                       setModal('opencode');
                     }}
                   >
-                    <Inbox /> Open with a code
+                    <Inbox /> View/Join Event with a code
                   </button>
                   <span className="sep" />
                   <button type="button" onClick={startNewParty}>
@@ -1095,9 +1106,9 @@ export default function Page() {
           summary={summaryText()}
           sharedBy={profile?.name ?? 'a friend'}
           cloudLinks={usingCloud ? cloudLinks : null}
+          inviteUrl={inviteUrl}
           onCreateLink={(role) => void addShareLink(role)}
           onRevokeLink={(role) => void dropShareLink(role)}
-          onCopyLink={() => write(shareUrl, 'Link copied')}
           onCopySummary={copySummary}
           onCopyText={(text, message) => void write(text, message)}
           onClose={() => setModal(null)}

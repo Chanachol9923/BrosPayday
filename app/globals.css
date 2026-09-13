@@ -1654,3 +1654,13 @@ table.grid .cellname { display: flex; align-items: center; gap: 7px; }
     .code-role { min-height: 34px; }
   }
 }
+
+/* The menu's headline action, so sharing is findable at a glance. */
+.menu button.accent {
+  background: var(--accent-dim);
+  color: var(--accent);
+  font-weight: 680;
+}
+.menu button.accent:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
+
+.invite-label { margin-top: 15px; color: var(--accent); }

@@ -14,9 +14,9 @@ export function ShareSheet({
   summary,
   sharedBy,
   cloudLinks,
+  inviteUrl,
   onCreateLink,
   onRevokeLink,
-  onCopyLink,
   onCopySummary,
   onCopyText,
   onClose,
@@ -27,9 +27,10 @@ export function ShareSheet({
   sharedBy: string;
   /** Null when the app is local-only: there is no server to host a live link. */
   cloudLinks: ShareLink[] | null;
+  /** The live edit-invite link, once this event has an edit code. */
+  inviteUrl: string | null;
   onCreateLink: (role: 'view' | 'edit') => void;
   onRevokeLink: (role: 'view' | 'edit') => void;
-  onCopyLink: () => void;
   onCopySummary: () => void;
   onCopyText: (text: string, message: string) => void;
   onClose: () => void;
@@ -44,12 +45,17 @@ export function ShareSheet({
 
   const total = party.items.reduce((a, i) => a + i.amount, 0);
 
+  // With cloud sync on, the thing worth handing someone is the live invite; the
+  // snapshot link below is the fallback for a local-only app.
+  const primaryUrl = inviteUrl ?? url;
+  const invites = inviteUrl !== null;
+
   const nativeShare = async () => {
     try {
       await navigator.share({
         title: `${partyLabel(party)} — BrosPayday`,
         text: summary,
-        url,
+        url: primaryUrl,
       });
     } catch {
       /* the user dismissed the share sheet — nothing to report */
@@ -69,6 +75,10 @@ export function ShareSheet({
         <div className="share-card-by">shared by {sharedBy}</div>
       </div>
 
+      {invites && (
+        <span className="label invite-label">Invite to Join Event (Can Edit)</span>
+      )}
+
       <div className="share-actions">
         {canNativeShare && (
           <button type="button" className="btn primary block" onClick={nativeShare}>
@@ -76,7 +86,11 @@ export function ShareSheet({
             Share…
           </button>
         )}
-        <button type="button" className="btn block" onClick={onCopyLink}>
+        <button
+          type="button"
+          className={canNativeShare ? 'btn block' : 'btn primary block'}
+          onClick={() => onCopyText(primaryUrl, invites ? 'Invite link copied' : 'Link copied')}
+        >
           <Link />
           Copy link
         </button>
@@ -85,6 +99,13 @@ export function ShareSheet({
           Copy summary for chat
         </button>
       </div>
+
+      {invites && (
+        <p className="hint" style={{ marginTop: 9 }}>
+          Whoever opens it can add what they bought, to this event only. Hand out the view code
+          below instead if they should just look.
+        </p>
+      )}
 
       {cloudLinks && (
         <>

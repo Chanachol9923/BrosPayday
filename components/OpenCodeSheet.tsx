@@ -18,7 +18,7 @@ export function OpenCodeSheet({ onClose }: { onClose: () => void }) {
 
   return (
     <Sheet
-      title="Open with a code"
+      title="View/Join Event with a code"
       onClose={onClose}
       footer={
         <>
@@ -33,7 +33,8 @@ export function OpenCodeSheet({ onClose }: { onClose: () => void }) {
       }
     >
       <p className="hint" style={{ marginBottom: 12 }}>
-        Someone sharing an event can give you its code. You do not need an account to open it.
+        Someone sharing an event can give you its code. You do not need an account — depending on
+        the code you will either be able to look, or to add what you bought.
       </p>
 
       <input
@@ -52,8 +53,7 @@ export function OpenCodeSheet({ onClose }: { onClose: () => void }) {
       />
 
       <p className="hint" style={{ marginTop: 9 }}>
-        Eight characters, dash optional. Depending on the code you will be able to look, or to add
-        what you bought.
+        Eight characters, dash optional.
       </p>
     </Sheet>
   );

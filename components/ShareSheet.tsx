@@ -98,18 +98,26 @@ export function ShareSheet({
           <div className="code-grid">
             {(['view', 'edit'] as const).map((role) => {
               const existing = cloudLinks.find((l) => l.role === role);
-              const label = role === 'edit' ? 'Can add expenses' : 'View only';
+              // The card's heading and the word used mid-sentence are not the same
+              // thing: "Revoke the join group link (can edit) code?" reads badly.
+              const heading = role === 'edit' ? 'Join Group Link (Can Edit)' : 'View only';
+              const shortName = role === 'edit' ? 'edit' : 'view';
 
               return (
                 <div className={`code-card${role === 'edit' ? ' editable' : ''}`} key={role}>
-                  <span className="code-role">{label}</span>
+                  <span className="code-role">{heading}</span>
 
                   {existing ? (
                     <>
                       <button
                         type="button"
                         className="code-value num"
-                        onClick={() => onCopyText(existing.token, `${label} code copied`)}
+                        onClick={() =>
+                          onCopyText(
+                            existing.token,
+                            `${shortName === 'edit' ? 'Edit' : 'View'} code copied`,
+                          )
+                        }
                         title="Copy this code"
                       >
                         {existing.token.slice(0, 4)}
@@ -135,11 +143,15 @@ export function ShareSheet({
                           type="button"
                           className="icon-btn sm bare"
                           onClick={() => {
-                            if (window.confirm(`Revoke the ${label.toLowerCase()} code? Anyone using it loses access.`)) {
+                            if (
+                              window.confirm(
+                                `Revoke the ${shortName} code? Anyone using it loses access.`,
+                              )
+                            ) {
                               onRevokeLink(role);
                             }
                           }}
-                          aria-label={`Revoke the ${label.toLowerCase()} code`}
+                          aria-label={`Revoke the ${shortName} code`}
                         >
                           <Trash size={14} />
                         </button>

@@ -214,12 +214,25 @@ export function useCloud(store: Store, setStore: (next: Store | ((prev: Store) =
   }, [status, activeGroupId, pull]);
 
   /* ── actions ───────────────────────────────────────────────────── */
-  const signIn = useCallback(async () => {
+  /**
+   * `next` is where to land afterwards — someone who followed an invite link has
+   * to come back to that event, not to a blank sheet. Only a path on this site is
+   * accepted; anything else is dropped rather than trusted, and the callback
+   * checks it again on the way back.
+   */
+  const signIn = useCallback(async (next?: string) => {
     const db = supabase();
     if (!db) return;
+
+    const safe =
+      typeof next === 'string' && next.startsWith('/') && !next.startsWith('//') ? next : null;
+    const callback = `${window.location.origin}/auth/callback${
+      safe ? `?next=${encodeURIComponent(safe)}` : ''
+    }`;
+
     const { error: signInError } = await db.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: `${window.location.origin}/auth/callback` },
+      options: { redirectTo: callback },
     });
     if (signInError) setError(signInError.message);
   }, []);

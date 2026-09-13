@@ -102,8 +102,9 @@ export function ShareSheet({
 
       {invites && (
         <p className="hint" style={{ marginTop: 9 }}>
-          Whoever opens it can add what they bought, to this event only. Hand out the view code
-          below instead if they should just look.
+          Whoever opens it can add what they bought, to this event only — they sign in first, so
+          every change has a name on it. Hand out the view code below instead if they should just
+          look; that one needs no account at all.
         </p>
       )}
 
@@ -112,8 +113,8 @@ export function ShareSheet({
           <div className="divider" />
           <span className="label">This event&rsquo;s codes</span>
           <p className="hint" style={{ marginBottom: 11 }}>
-            One code per event. Whoever has it sees this event and nothing else of yours — no
-            sign-in needed, and you can revoke it whenever.
+            One code per event. Whoever has it sees this event and nothing else of yours, and you
+            can revoke it whenever. Looking needs no account; editing does.
           </p>
 
           <div className="code-grid">

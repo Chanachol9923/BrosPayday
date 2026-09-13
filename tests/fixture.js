@@ -50,6 +50,7 @@ function referenceParty() {
       item('i_711', '7-Eleven run', 17000, p.y, all),
     ],
     photos: [],
+    repayments: {},
     createdAt: now,
     updatedAt: now,
   };

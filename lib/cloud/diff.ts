@@ -21,6 +21,8 @@ export type RowOp =
   | { table: 'expenses'; op: 'upsert'; id: string; partyId: string; item: Item; order: number }
   | { table: 'expenses'; op: 'delete'; id: string }
   | { table: 'expense_shares'; op: 'replace'; expenseId: string; shares: { personId: string; weight: number }[] }
+  | { table: 'repayments'; op: 'upsert'; partyId: string; fromId: string; toId: string; amountPaid: number }
+  | { table: 'repayments'; op: 'delete'; partyId: string; fromId: string; toId: string }
   | { table: 'photos'; op: 'upsert'; id: string; partyId: string; photo: PhotoMeta }
   | { table: 'photos'; op: 'delete'; id: string }
   | { table: 'presets'; op: 'upsert'; id: string; preset: Preset }
@@ -110,6 +112,33 @@ function photoOps(prev: Party | null, next: Party): RowOp[] {
   return ops;
 }
 
+function repaymentOps(prev: Party | null, next: Party): RowOp[] {
+  const ops: RowOp[] = [];
+  const before = prev?.repayments ?? {};
+  const after = next.repayments ?? {};
+  // A repayment points at two people. If either has since been taken off the
+  // split, the row cannot exist in the database and must not be sent: the person
+  // delete travels in this same batch and would land first.
+  const present = new Set(next.people.map((p) => p.id));
+
+  for (const [key, amountPaid] of Object.entries(after)) {
+    const [fromId, toId] = key.split('>');
+    if (!fromId || !toId) continue;
+    if (!present.has(fromId) || !present.has(toId)) continue;
+    if (before[key] === amountPaid) continue;
+    ops.push({ table: 'repayments', op: 'upsert', partyId: next.id, fromId, toId, amountPaid });
+  }
+
+  for (const key of Object.keys(before)) {
+    if (after[key] !== undefined) continue;
+    const [fromId, toId] = key.split('>');
+    if (!fromId || !toId) continue;
+    ops.push({ table: 'repayments', op: 'delete', partyId: next.id, fromId, toId });
+  }
+
+  return ops;
+}
+
 /** Every row operation needed to turn `prev` into `next` for one party. */
 export function diffParty(prev: Party | null, next: Party | null): RowOp[] {
   if (!next) return prev ? [{ table: 'parties', op: 'delete', id: prev.id }] : [];
@@ -127,6 +156,7 @@ export function diffParty(prev: Party | null, next: Party | null): RowOp[] {
   ops.push(...peopleOps(sameParty, next));
   ops.push(...expenseOps(sameParty, next));
   ops.push(...photoOps(sameParty, next));
+  ops.push(...repaymentOps(sameParty, next));
 
   return ops;
 }

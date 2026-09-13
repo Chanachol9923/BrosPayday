@@ -14,7 +14,10 @@ values
    now(), now(), now(), '{"provider":"email"}', '{"full_name":"Probe A"}'),
   ('bbbbbbbb-0000-4000-8000-000000000002', '00000000-0000-0000-0000-000000000000',
    'authenticated', 'authenticated', 'rls-probe-b@brospayday.invalid', '',
-   now(), now(), now(), '{"provider":"email"}', '{"full_name":"Probe B"}');
+   now(), now(), now(), '{"provider":"email"}', '{"full_name":"Probe B"}'),
+  ('cccccccc-0000-4000-8000-000000000003', '00000000-0000-0000-0000-000000000000',
+   'authenticated', 'authenticated', 'rls-probe-c@brospayday.invalid', '',
+   now(), now(), now(), '{"provider":"email"}', '{"full_name":"Probe C"}');
 
 create temporary table findings (seq serial, check_name text, passed boolean, detail text);
 -- the probes run as other roles, so they need to be able to record what they found
@@ -124,8 +127,34 @@ begin
   perform public.share_write('probe-view-token', '[]'::jsonb);
   insert into findings (check_name, passed, detail) values ('a view link cannot write', false, 'the write SUCCEEDED');
 exception when others then
-  insert into findings (check_name, passed, detail) values ('a view link cannot write', true, 'refused: ' || sqlerrm);
+  insert into findings (check_name, passed, detail)
+  values ('a view link cannot write, and is not told to sign in',
+          sqlerrm not like '%sign in%', 'refused: ' || sqlerrm);
 end $$;
+
+-- An edit link changes what other people owe, so it needs a name behind it.
+-- Signed out it reads and nothing more; signed in it does the job it was sent for.
+do $$
+begin
+  perform public.share_write('probe-edit-token', jsonb_build_array(
+    jsonb_build_object('table','expenses','op','upsert','id','44444444-0000-4000-8000-000000000009',
+                       'order',9,'item', jsonb_build_object('name','Signed out','amount',100,'payerId',null))
+  ));
+  insert into findings (check_name, passed, detail)
+  values ('an edit link cannot write until someone signs in', false, 'the write SUCCEEDED');
+exception when others then
+  insert into findings (check_name, passed, detail)
+  values ('an edit link cannot write until someone signs in', true, 'refused: ' || sqlerrm);
+end $$;
+
+insert into findings (check_name, passed, detail)
+select 'the signed-out attempt left the party untouched',
+       jsonb_array_length(public.share_read('probe-view-token') -> 'expenses') = 3,
+       jsonb_array_length(public.share_read('probe-view-token') -> 'expenses') || ' expenses';
+
+-- C is signed in and on nothing: no crew, no party, only the link.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"cccccccc-0000-4000-8000-000000000003","role":"authenticated"}';
 
 select public.share_write('probe-edit-token', jsonb_build_array(
   jsonb_build_object('table','expenses','op','upsert','id','44444444-0000-4000-8000-000000000004',
@@ -133,9 +162,12 @@ select public.share_write('probe-edit-token', jsonb_build_array(
 ));
 
 insert into findings (check_name, passed, detail)
-select 'an edit link can add what they bought',
+select 'a signed-in edit link can add what they bought',
        jsonb_array_length(public.share_read('probe-view-token') -> 'expenses') = 4,
        jsonb_array_length(public.share_read('probe-view-token') -> 'expenses') || ' expenses now';
+
+set local role anon;
+set local request.jwt.claims = '{"role":"anon"}';
 
 -- an edit link must not reach a different party
 insert into findings (check_name, passed, detail)

@@ -375,17 +375,23 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .settle-list { display: flex; flex-direction: column; gap: 9px; }
 
 .settle-row {
+  width: 100%;
+  border-radius: var(--radius);
+  border: 1px solid var(--border-strong);
+  background: linear-gradient(180deg, var(--surface-2), var(--surface));
+  transition: border-color 0.16s ease;
+  overflow: hidden;
+}
+.settle-row:hover { border-color: var(--accent); }
+
+.settle-top {
   display: flex;
   align-items: center;
   gap: 10px;
   width: 100%;
   padding: 12px;
-  border-radius: var(--radius);
-  border: 1px solid var(--border-strong);
-  background: linear-gradient(180deg, var(--surface-2), var(--surface));
-  transition: opacity 0.16s ease, border-color 0.16s ease;
+  transition: opacity 0.16s ease;
 }
-.settle-row:hover { border-color: var(--accent); }
 
 .settle-body {
   display: flex;
@@ -399,7 +405,7 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   color: inherit;
   text-align: left;
 }
-.settle-row.done { opacity: 0.44; }
+.settle-row.done .settle-top { opacity: 0.5; }
 .settle-row.done .settle-amount { text-decoration: line-through; }
 
 .settle-who {
@@ -438,7 +444,66 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .tick:hover { border-color: var(--pos); }
 
 .settle-qr { color: var(--text-faint); display: grid; flex-shrink: 0; }
-.settle-row.done .tick { background: var(--pos); border-color: var(--pos); color: #06210f; }
+.settle-row.done .tick { background: var(--pos); border-color: var(--pos); color: #06210f; opacity: 1; }
+.tick:disabled { opacity: 0.5; }
+
+/* what has actually changed hands, and what that leaves */
+.settle-was {
+  display: block;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-faint);
+  text-decoration: line-through;
+  letter-spacing: 0;
+}
+
+.settle-repaid {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px 9px 48px; /* lines up under the names, clear of the circle */
+  border-top: 1px dashed var(--border);
+  background: rgba(255, 255, 255, 0.015);
+  font-size: 12.5px;
+  color: var(--text-faint);
+}
+
+.settle-repaid-label { flex-shrink: 0; font-weight: 600; margin: 0; }
+
+.repaid-wrap {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 8px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  min-width: 0;
+}
+.repaid-wrap:focus-within { border-color: var(--accent); background: var(--surface-3); }
+.repaid-wrap .cur { color: var(--text-faint); font-size: 12.5px; }
+
+.repaid-input {
+  width: 74px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 16px; /* keeps iOS Safari from zooming on focus */
+  font-weight: 650;
+}
+.repaid-input:focus { outline: none; }
+.repaid-input::placeholder { color: var(--text-faint); font-weight: 500; }
+
+.settle-left {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-weight: 650;
+  color: var(--text-dim);
+  white-space: nowrap;
+}
+.settle-left.clear { color: var(--pos); }
 
 /* ── balance cards ─────────────────────────────────────────────── */
 .bal-list { display: flex; flex-direction: column; gap: 8px; }
@@ -1562,6 +1627,43 @@ table.grid .cellname { display: flex; align-items: center; gap: 7px; }
   font-size: 13px;
   color: var(--text-dim);
   line-height: 1.4;
+}
+
+/* An invite that cannot be used yet has to look like something to act on. */
+.share-bar.needs-signin {
+  background: var(--accent-dim);
+  border-color: color-mix(in srgb, var(--accent) 30%, transparent);
+}
+.share-bar.needs-signin span:first-child { color: var(--text); }
+.share-bar.needs-signin .btn { flex-shrink: 0; }
+
+@media (max-width: 520px) {
+  .share-bar.needs-signin { flex-wrap: wrap; }
+  .share-bar.needs-signin .btn { width: 100%; justify-content: center; }
+}
+
+/* The offer to sign in, sitting in the header next to whoever is using the app. */
+.signin-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--accent) 34%, transparent);
+  background: var(--accent-dim);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 650;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.signin-chip:hover { border-color: var(--accent); }
+
+@media (max-width: 344px) {
+  /* Only on the very narrowest phones does the mark have to carry it alone. */
+  .signin-chip { padding: 0 9px; }
+  .signin-chip-text { display: none; }
 }
 
 /* ── the way back from local-only ───────────────────────────────── */

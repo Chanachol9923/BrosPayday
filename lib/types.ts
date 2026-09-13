@@ -40,6 +40,12 @@ export type Party = EventState & {
   /** The day the party happened, as YYYY-MM-DD in local time. */
   date: string;
   photos: PhotoMeta[];
+  /**
+   * How much of each suggested payment has actually changed hands, keyed
+   * `fromPersonId>toPersonId` in minor units. Purely a record: it never feeds
+   * back into the split, so the arithmetic and its proof stay put.
+   */
+  repayments: Record<string, number>;
   createdAt: number;
   updatedAt: number;
 };

@@ -55,6 +55,7 @@ export function newParty(currencyCode = 'THB'): Party {
     people: [],
     items: [],
     photos: [],
+    repayments: {},
     createdAt: now,
     updatedAt: now,
   };
@@ -101,7 +102,9 @@ function coerce(raw: unknown): Store | null {
 
     // Parties saved before photos existed have no array to push into.
     for (const party of [s.current[p.id], ...s.history[p.id]]) {
-      if (party && !Array.isArray(party.photos)) party.photos = [];
+      if (!party) continue;
+      if (!Array.isArray(party.photos)) party.photos = [];
+      if (!party.repayments || typeof party.repayments !== 'object') party.repayments = {};
     }
   }
   return s;
@@ -129,6 +132,7 @@ function migrateLegacy(): Store | null {
         people: old.people,
         items: old.items,
         photos: [],
+        repayments: {},
         createdAt: now,
         updatedAt: now,
       },
@@ -424,6 +428,7 @@ export function placeholderStore(): Store {
     people: [],
     items: [],
     photos: [],
+    repayments: {},
     createdAt: 0,
     updatedAt: 0,
   };

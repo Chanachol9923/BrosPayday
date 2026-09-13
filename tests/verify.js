@@ -7,7 +7,7 @@
  * parties, plus the edge cases a real user (or a hand-edited share link) can reach.
  */
 
-const { computeSplit, allocate } = require('../.verify/split.js');
+const { computeSplit, allocate, repaymentKey, repaymentView } = require('../.verify/split.js');
 const { parseAmount, formatMoney, rescaleAmount } = require('../.verify/format.js');
 const { encodeParty, decodeParty } = require('../.verify/share.js');
 const {
@@ -609,6 +609,121 @@ section('cloud sync — turning edits into row writes');
   fresh.filter((o) => o.table === 'expenses').length === base.items.length
     ? ok('a new party uploads its people and expenses completely')
     : fail(`new party emitted ${JSON.stringify(tables(fresh))}`);
+}
+
+
+section('repayments — a record, never an input');
+{
+  // 1. the key names a direction, not just a pair
+  repaymentKey('a', 'b') !== repaymentKey('b', 'a') && repaymentKey('a', 'b') === 'a>b'
+    ? ok('a repayment is addressed to one direction: “a>b” is not “b>a”')
+    : fail('repaymentKey is ambiguous about direction');
+
+  // 2. the arithmetic of "how much is left", over every combination worth having
+  let bad = 0;
+  let readings = 0;
+  for (let amount = 0; amount <= 400; amount += 7) {
+    for (let paid = -50; paid <= 500; paid += 3) {
+      const v = repaymentView(amount, paid);
+      readings++;
+      if (v.paid < 0 || v.left < 0) bad++;
+      if (v.paid + v.left !== amount) bad++;
+      if (v.paid > amount) bad++;
+      if (v.done !== (amount > 0 && v.left === 0)) bad++;
+    }
+  }
+  bad
+    ? fail(`${bad} repayment-view violations`)
+    : ok(`${readings.toLocaleString('en-US')} repayment readings: paid + left is the payment exactly, and neither goes negative`);
+
+  // 3. junk from a hand-edited link or an older sheet cannot produce a negative debt
+  const junk = [NaN, Infinity, -Infinity, -1, undefined, null, '500'];
+  junk.every((v) => {
+    const r = repaymentView(124000, v);
+    return r.left >= 0 && r.left <= 124000 && r.paid >= 0;
+  })
+    ? ok('a nonsense repayment reads as zero rather than as money owed back')
+    : fail('a junk repayment produced a bad remainder');
+
+  repaymentView(124000, 999999).left === 0 && repaymentView(124000, 999999).paid === 124000
+    ? ok('paying back more than the payment leaves nothing outstanding, not a credit')
+    : fail('overpayment did not clamp');
+
+  repaymentView(0, 0).done === false
+    ? ok('a payment of nothing is not “settled” — there was never anything to settle')
+    : fail('an empty payment reported itself as done');
+
+  // 4. the whole point: typing a repayment must not move the split
+  const party = referenceParty();
+  const before = computeSplit(party);
+  const after = computeSplit({
+    ...party,
+    repayments: { [repaymentKey('p_m', 'p_q')]: 50000, [repaymentKey('p_y', 'p_q')]: 1000 },
+  });
+  JSON.stringify(before) === JSON.stringify(after)
+    ? ok('recording a repayment changes nothing about the split or its proof')
+    : fail('a repayment altered the computed split');
+
+  // 5. the reference party, half-settled by hand
+  const mToQ = before.transfers.find((t) => t.fromId === 'p_m' && t.toId === 'p_q');
+  const yToQ = before.transfers.find((t) => t.fromId === 'p_y' && t.toId === 'p_q');
+  const half = repaymentView(mToQ.amount, 50000);
+  half.left === 74000 && half.paid === 50000 && half.done === false
+    ? ok('M owes Q 1,240 and has handed over 500: 740 left, still open')
+    : fail(`half-settled row read ${JSON.stringify(half)}`);
+
+  repaymentView(yToQ.amount, yToQ.amount).done && repaymentView(yToQ.amount, yToQ.amount).left === 0
+    ? ok('Y’s 10 marked as paid closes that row exactly')
+    : fail('paying a row in full did not close it');
+}
+
+section('repayments — what reaches the database');
+{
+  const base = { ...referenceParty(), repayments: {} };
+  const withOne = { ...base, repayments: { 'p_m>p_q': 50000 } };
+
+  const addOps = diffParty(base, withOne).filter((o) => o.table === 'repayments');
+  addOps.length === 1 && addOps[0].op === 'upsert' && addOps[0].fromId === 'p_m' &&
+  addOps[0].toId === 'p_q' && addOps[0].amountPaid === 50000
+    ? ok('recording a repayment writes one row, naming both people and the amount')
+    : fail(`recording a repayment emitted ${JSON.stringify(addOps)}`);
+
+  const changed = { ...base, repayments: { 'p_m>p_q': 60000 } };
+  const changeOps = diffParty(withOne, changed).filter((o) => o.table === 'repayments');
+  changeOps.length === 1 && changeOps[0].op === 'upsert' && changeOps[0].amountPaid === 60000
+    ? ok('changing the amount rewrites that one row and nothing else')
+    : fail(`changing a repayment emitted ${JSON.stringify(changeOps)}`);
+
+  const clearOps = diffParty(withOne, base).filter((o) => o.table === 'repayments');
+  clearOps.length === 1 && clearOps[0].op === 'delete' && clearOps[0].fromId === 'p_m'
+    ? ok('clearing a repayment deletes the row rather than storing a zero')
+    : fail(`clearing a repayment emitted ${JSON.stringify(clearOps)}`);
+
+  diffParty(withOne, withOne).filter((o) => o.table === 'repayments').length === 0
+    ? ok('an unchanged repayment is not resent')
+    : fail('an unchanged repayment was resent');
+
+  // Two people, two different rows, no collision — the same guarantee as expenses.
+  const mine = { ...base, repayments: { 'p_m>p_q': 50000 } };
+  const theirs = { ...base, repayments: { 'p_f>p_q': 30000 } };
+  const keys = (ops) => ops.filter((o) => o.table === 'repayments').map((o) => `${o.fromId}>${o.toId}`);
+  const theirKeys = keys(diffParty(base, theirs));
+  const overlap = keys(diffParty(base, mine)).filter((k) => theirKeys.includes(k));
+  overlap.length === 0
+    ? ok('two people recording different repayments write to different rows')
+    : fail(`repayments collided on ${overlap.join(', ')}`);
+
+  // A repayment left over from someone since taken off the split must not be sent:
+  // the row it points at cannot exist, and the person delete travels in this batch.
+  const orphaned = {
+    ...base,
+    people: base.people.filter((p) => p.id !== 'p_y'),
+    repayments: { 'p_y>p_q': 1000, 'p_m>p_q': 50000 },
+  };
+  const orphanOps = diffParty(base, orphaned).filter((o) => o.table === 'repayments');
+  orphanOps.length === 1 && orphanOps[0].fromId === 'p_m'
+    ? ok('a repayment naming someone no longer on the split is not written')
+    : fail(`orphan repayment emitted ${JSON.stringify(orphanOps)}`);
 }
 
 console.log(fails === 0 ? '\nALL GREEN\n' : `\n${fails} FAILURE(S)\n`);

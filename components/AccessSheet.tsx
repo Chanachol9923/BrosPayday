@@ -69,6 +69,15 @@ function describe(entry: LogEntry, currency: string): React.ReactNode {
       return <>renamed someone to {what}</>;
     case 'removed_person':
       return <>took {what} off the split</>;
+    case 'recorded_repayment':
+      // The subject is already the pair, e.g. "M to Q".
+      return entry.amount === 0 ? (
+        <>cleared what had been paid back for {what}</>
+      ) : (
+        <>
+          recorded {what} as paid{money}
+        </>
+      );
     case 'removed_member':
       return <>removed {what} from this event</>;
     case 'restored_member':
@@ -220,8 +229,8 @@ export function AccessSheet({
           )}
 
           <p className="hint" style={{ marginTop: 11 }}>
-            Everything is recorded, including edits made through an invite link — those show as the
-            link rather than a name, since there is no account behind them.
+            Everything is recorded, including edits made through an invite link — those carry a name
+            too, since an invite link only works once the person using it has signed in.
           </p>
         </>
       )}

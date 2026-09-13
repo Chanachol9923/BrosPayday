@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Item, Party, Payee, Store } from '@/lib/types';
 import { CURRENCIES, currencyOf } from '@/lib/types';
-import { computeSplit } from '@/lib/split';
+import { computeSplit, repaymentKey, repaymentView } from '@/lib/split';
 import { formatMoney, rescaleAmount, uid } from '@/lib/format';
 import { hueForIndex } from '@/lib/colors';
 import { useKeyboardInset } from '@/lib/keyboard';
@@ -60,7 +60,7 @@ import {
   removePhoto as removePhoto_cloud,
   uploadPhoto,
 } from '@/lib/cloud/photos';
-import { CloudGate, CloudLoading } from '@/components/CloudGate';
+import { CloudGate, CloudLoading, GoogleMark } from '@/components/CloudGate';
 import { AccountSheet } from '@/components/AccountSheet';
 import { OpenCodeSheet } from '@/components/OpenCodeSheet';
 import { AccessSheet } from '@/components/AccessSheet';
@@ -73,13 +73,14 @@ import {
   listShareLinks,
   readSharedParty,
   revokeEventShare,
+  shareCapability,
   writeSharedParty,
 } from '@/lib/cloud/api';
 import { PartyHeader } from '@/components/PartyHeader';
 import { PeoplePanel } from '@/components/PeoplePanel';
 import { ExpenseList } from '@/components/ExpenseList';
 import { ExpenseSheet } from '@/components/ExpenseSheet';
-import { Results, transferKey } from '@/components/Results';
+import { Results } from '@/components/Results';
 import { Proof } from '@/components/Proof';
 import { ProfileSheet } from '@/components/ProfileSheet';
 import { HistorySheet } from '@/components/HistorySheet';
@@ -121,14 +122,20 @@ export default function Page() {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [menuOpen, setMenuOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
-  const [settled, setSettled] = useState<string[]>([]);
   const [memberId, setMemberId] = useState<string | null>(null);
   const [payFor, setPayFor] = useState<{ fromId: string; toId: string; amount: number } | null>(null);
   const [photoIndex, setPhotoIndex] = useState<number | null>(null);
   const [photoBusy, setPhotoBusy] = useState(0);
   const [localOnly, setLocalOnly] = useState(false);
   /** Set when the page was opened with a share token rather than by a Group member. */
-  const [shareMode, setShareMode] = useState<{ token: string; role: 'view' | 'edit' } | null>(null);
+  const [shareMode, setShareMode] = useState<
+    /**
+     * `role` is what the link itself allows; `signInToEdit` is true when it allows
+     * editing but nobody is signed in yet. An edit link changes what other people
+     * owe, so it stays view-only until there is a name to put against the change.
+     */
+    { token: string; role: 'view' | 'edit'; signInToEdit: boolean } | null
+  >(null);
   const [shareLoading, setShareLoading] = useState(false);
   const [cloudLinks, setCloudLinks] = useState<ShareLink[]>([]);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
@@ -143,8 +150,9 @@ export default function Page() {
   const cloud = useCloud(store, setStore);
   /** Cloud is in charge of the data — the local store is not persisted in this mode. */
   const usingCloud = cloud.configured && !localOnly && !shareMode;
-  /** A view link may look at everything and change nothing. */
-  const readOnly = shareMode?.role === 'view';
+  /** A view link may look at everything and change nothing — and so may an
+   * edit link in the hands of someone who has not signed in. */
+  const readOnly = !!shareMode && (shareMode.role !== 'edit' || shareMode.signInToEdit);
 
   /* ── boot ────────────────────────────────────────────────────── */
   useEffect(() => {
@@ -179,7 +187,7 @@ export default function Page() {
             setBadCode(true);
             return;
           }
-          setShareMode({ token, role: found.role });
+          setShareMode({ token, role: found.role, signInToEdit: found.role === 'edit' });
           sharedBase.current = found.party;
           setStore((prev) => ({
             ...prev,
@@ -332,9 +340,34 @@ export default function Page() {
   }, [usingCloud, cloud.status, party.id, modal]);
 
 
+  /**
+   * What a link can do is a question for the database, not for the token: an edit
+   * link is only an edit link once somebody is signed in. Asked again whenever the
+   * session changes, so coming back from Google unlocks the page on the spot, and
+   * anything short of a confirmed "edit" leaves it read-only.
+   */
+  useEffect(() => {
+    const token = shareMode?.token;
+    if (!token || shareMode?.role !== 'edit') return;
+
+    let alive = true;
+    void shareCapability(token)
+      .then((cap) => {
+        if (!alive) return;
+        setShareMode((prev) =>
+          prev && prev.token === token ? { ...prev, signInToEdit: cap !== 'edit' } : prev,
+        );
+      })
+      .catch(() => undefined);
+
+    return () => {
+      alive = false;
+    };
+  }, [shareMode?.token, shareMode?.role, cloud.user]);
+
   // Someone holding an edit link: push just their party, through the token.
   useEffect(() => {
-    if (shareMode?.role !== 'edit') return;
+    if (shareMode?.role !== 'edit' || shareMode.signInToEdit) return;
     const base = sharedBase.current;
     if (!base) return;
 
@@ -393,6 +426,10 @@ export default function Page() {
     updateParty((p) => ({
       ...p,
       people: p.people.filter((x) => x.id !== id),
+      // Any note about money moving to or from this person goes with them.
+      repayments: Object.fromEntries(
+        Object.entries(p.repayments ?? {}).filter(([key]) => !key.split('>').includes(id)),
+      ),
       items: p.items.map((item) => {
         const { [id]: _dropped, ...weights } = item.weights ?? {};
         return {
@@ -504,8 +541,30 @@ export default function Page() {
     );
   };
 
-  const toggleSettled = (key: string) =>
-    setSettled((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
+  /**
+   * A repayment is a note against one suggested payment — "M has already given Q
+   * 500" — and deliberately not an input to the split. Feeding it back would
+   * reshuffle who-pays-whom on every keystroke and leave the proof describing a
+   * different set of numbers than the receipts do.
+   */
+  const repaidFor = useCallback(
+    (fromId: string, toId: string) => party.repayments?.[repaymentKey(fromId, toId)] ?? 0,
+    [party.repayments],
+  );
+
+  const setRepaid = useCallback(
+    (fromId: string, toId: string, amountPaid: number) =>
+      updateParty((p) => {
+        const key = repaymentKey(fromId, toId);
+        const next = { ...(p.repayments ?? {}) };
+        // Zero is the absence of a repayment, not a repayment of nothing: storing
+        // it would leave rows behind for pairs that no longer owe each other.
+        if (amountPaid <= 0) delete next[key];
+        else next[key] = amountPaid;
+        return { ...p, repayments: next };
+      }),
+    [updateParty],
+  );
 
   /**
    * Amounts live in minor units, so moving between a 2-decimal currency and a
@@ -667,7 +726,13 @@ export default function Page() {
       lines.push('Everyone is square.');
     } else {
       for (const t of result.transfers) {
-        lines.push(`${nameOf(t.fromId)} → ${nameOf(t.toId)}  ${money(t.amount)}`);
+        const { paid, left } = repaymentView(t.amount, repaidFor(t.fromId, t.toId));
+        const who = `${nameOf(t.fromId)} → ${nameOf(t.toId)}`;
+        // Pasted into a group chat, this has to say what is still outstanding —
+        // otherwise someone pays a bill twice on the strength of an old message.
+        if (paid <= 0) lines.push(`${who}  ${money(t.amount)}`);
+        else if (left === 0) lines.push(`${who}  ${money(t.amount)} — paid`);
+        else lines.push(`${who}  ${money(left)} left (of ${money(t.amount)}, ${money(paid)} paid)`);
       }
     }
     lines.push('');
@@ -841,6 +906,20 @@ export default function Page() {
             {historyList.length > 0 && <span className="dot-badge" />}
           </button>
 
+          {/* Nobody signed in: the way to do it sits next to whoever is making the
+              event, not buried two taps deep in a sheet. */}
+          {cloud.configured && !usingCloud && !shareMode && (
+            <button
+              type="button"
+              className="signin-chip"
+              onClick={() => void cloud.signIn()}
+              aria-label="Sign in with Google"
+            >
+              <GoogleMark size={14} />
+              <span className="signin-chip-text">Sign in</span>
+            </button>
+          )}
+
           <button
             type="button"
             className="profile-btn"
@@ -934,13 +1013,28 @@ export default function Page() {
       </header>
 
       {shareMode && (
-        <div className="share-bar">
+        <div className={`share-bar${shareMode.signInToEdit ? ' needs-signin' : ''}`}>
           <span>
-            {readOnly
-              ? 'Someone shared this with you to look at.'
-              : 'You can add what you bought — everything saves back to them.'}
+            {shareMode.signInToEdit
+              ? 'You were invited to edit this. Sign in and your changes will be saved — and signed.'
+              : readOnly
+                ? 'Someone shared this with you to look at.'
+                : 'You can add what you bought — everything saves back to them.'}
           </span>
-          <span className={readOnly ? 'pill' : 'pill accent'}>{readOnly ? 'View only' : 'Can edit'}</span>
+          {shareMode.signInToEdit ? (
+            <button
+              type="button"
+              className="btn sm primary"
+              onClick={() => void cloud.signIn(window.location.pathname + window.location.search)}
+            >
+              <GoogleMark size={14} />
+              Sign in to edit
+            </button>
+          ) : (
+            <span className={readOnly ? 'pill' : 'pill accent'}>
+              {readOnly ? 'View only' : 'Can edit'}
+            </span>
+          )}
         </div>
       )}
 
@@ -1019,10 +1113,11 @@ export default function Page() {
             currencyCode={party.currencyCode}
             hueOf={hueOf}
             onCopy={copySummary}
-            settled={settled}
-            onToggleSettled={toggleSettled}
+            repayments={party.repayments ?? {}}
+            onRepaid={setRepaid}
             payeeFor={payeeForPerson}
             onOpenPay={setPayFor}
+            readOnly={readOnly}
           />
           <Proof
             result={result}
@@ -1196,7 +1291,8 @@ export default function Page() {
           const from = party.people.find((p) => p.id === payFor.fromId);
           const to = party.people.find((p) => p.id === payFor.toId);
           if (!from || !to) return null;
-          const key = transferKey(payFor);
+          const alreadyPaid = repaidFor(payFor.fromId, payFor.toId);
+          const isSettled = repaymentView(payFor.amount, alreadyPaid).done;
           return (
             <PayQrSheet
               from={from}
@@ -1206,8 +1302,9 @@ export default function Page() {
               payee={payeeForPerson(to.id)}
               hueFrom={hueOf(from.id)}
               hueTo={hueOf(to.id)}
-              settled={settled.includes(key)}
-              onToggleSettled={() => toggleSettled(key)}
+              paid={alreadyPaid}
+              onToggleSettled={() => setRepaid(payFor.fromId, payFor.toId, isSettled ? 0 : payFor.amount)}
+              readOnly={readOnly}
               onClose={() => setPayFor(null)}
             />
           );
@@ -1249,7 +1346,13 @@ export default function Page() {
 
       <p className="hint" style={{ textAlign: 'center', marginTop: 22, paddingBottom: 6 }}>
         {shareMode
-          ? `Shared party · ${readOnly ? 'view only' : 'you can add expenses'}`
+          ? `Shared event · ${
+              shareMode.signInToEdit
+                ? 'sign in to edit'
+                : readOnly
+                  ? 'view only'
+                  : 'you can add expenses'
+            }`
           : usingCloud
             ? `Synced to your account · ${historyList.length} in history`
             : `Saved on this device only · ${historyList.length} in history`}{' '}

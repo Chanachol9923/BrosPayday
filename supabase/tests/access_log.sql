@@ -54,12 +54,31 @@ select 'a real change is logged', count(*) = 1, count(*) || ' row'
 from public.event_log where party_id = 'c3330000-0000-4000-8000-0000000000c3' and action = 'changed_expense';
 
 -- ── an edit through a link is attributed, not lost ────────────────────────
+--
+-- An edit link needs an account behind it, which is what makes this worth having:
+-- the log can say who, by name, even though they are not on the event.
 create temporary table codes as
 select public.event_share_code('c3330000-0000-4000-8000-0000000000c3','edit') as edit_code;
-grant all on codes to anon;
+grant all on codes to anon, authenticated;
 
 set local role anon;
 set local request.jwt.claims = '{"role":"anon"}';
+do $$
+declare c record;
+begin
+  select * into c from codes;
+  perform public.share_write(c.edit_code, jsonb_build_array(jsonb_build_object(
+    'table','expenses','op','upsert','id','f6660000-0000-4000-8000-0000000000f6','order',1,
+    'item', jsonb_build_object('name','Ice','amount',5000,'payerId','d4440000-0000-4000-8000-0000000000d4'))));
+  insert into findings (check_name, passed, detail)
+  values ('a link cannot make a change nobody can be named for', false, 'allowed');
+exception when others then
+  insert into findings (check_name, passed, detail)
+  values ('a link cannot make a change nobody can be named for', true, 'refused');
+end $$;
+
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"b2220000-0000-4000-8000-0000000000b2","role":"authenticated"}';
 do $$
 declare c record;
 begin
@@ -71,11 +90,12 @@ end $$;
 
 reset role;
 insert into findings (check_name, passed, detail)
-select 'an edit made with a link is attributed to the link',
+select 'an edit made with a link is attributed to whoever signed in',
        count(*) = 1, coalesce(max(actor_name), 'none')
 from public.event_log
 where party_id = 'c3330000-0000-4000-8000-0000000000c3'
-  and action = 'added_expense' and subject = 'Ice' and actor_id is null;
+  and action = 'added_expense' and subject = 'Ice'
+  and actor_id = 'b2220000-0000-4000-8000-0000000000b2';
 
 -- ── who can reach it ──────────────────────────────────────────────────────
 set local role authenticated;

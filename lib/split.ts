@@ -63,6 +63,36 @@ export type Transfer = {
   amount: number;
 };
 
+/** How a repayment is addressed: the pair it belongs to, not the amount. */
+export function repaymentKey(fromId: string, toId: string): string {
+  return `${fromId}>${toId}`;
+}
+
+export type RepaymentView = {
+  /** How much of this payment has been handed over, as far as anyone can be held to it. */
+  paid: number;
+  /** What is still outstanding. Never negative. */
+  left: number;
+  done: boolean;
+};
+
+/**
+ * One suggested payment, read against what has already been repaid.
+ *
+ * The stored figure is not taken on trust: it can outlive the debt it was recorded
+ * against — an expense gets corrected, someone is taken off the split, a share link
+ * arrives hand-edited — and a repayment larger than the payment must show as
+ * "nothing left", never as a negative amount owed. Note that this only changes what
+ * the settle-up row *says*; the split itself never sees it, so the proof keeps
+ * describing the same arithmetic no matter what anyone types here.
+ */
+export function repaymentView(amount: number, paid: number): RepaymentView {
+  const due = Number.isFinite(amount) ? Math.max(0, Math.round(amount)) : 0;
+  const given = Number.isFinite(paid) ? Math.max(0, Math.round(paid)) : 0;
+  const settled = Math.min(given, due);
+  return { paid: settled, left: due - settled, done: due > 0 && settled === due };
+}
+
 export type Check = {
   label: string;
   ok: boolean;

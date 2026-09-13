@@ -89,7 +89,7 @@ create temporary table codes as
 select public.event_share_code('aaaa1111-0000-4000-8000-00000000000a','view') as view_one,
        public.event_share_code('aaaa1111-0000-4000-8000-00000000000a','edit') as edit_one,
        public.event_share_code('bbbb2222-0000-4000-8000-00000000000b','view') as view_two;
-grant all on codes to anon;
+grant all on codes to anon, authenticated;
 
 set local role anon;
 set local request.jwt.claims = '{"role":"anon"}';
@@ -117,6 +117,29 @@ begin
     insert into findings (check_name, passed, detail) values ('a view code cannot write', true, 'refused');
   end;
 
+  -- and an edit code does nothing either, while nobody is signed in
+  begin
+    perform public.share_write(c.edit_one, jsonb_build_array(jsonb_build_object(
+      'table','expenses','op','upsert','id','eeee9999-0000-4000-8000-00000000000e','order',9,
+      'item', jsonb_build_object('name','Signed out','amount',100,'payerId',null))));
+    insert into findings (check_name, passed, detail)
+    values ('an edit code cannot write while signed out', false, 'allowed');
+  exception when others then
+    insert into findings (check_name, passed, detail)
+    values ('an edit code cannot write while signed out', true, 'refused');
+  end;
+end $$;
+
+-- From here on, someone signed in who is on neither event and holds nothing but
+-- the code — which is exactly who an invite code is handed to.
+set local role authenticated;
+set local request.jwt.claims = '{"sub":"ffffffff-0000-4000-8000-000000000006","role":"authenticated"}';
+
+do $$
+declare c record;
+begin
+  select * into c from codes;
+
   -- an edit code may add to its own event
   perform public.share_write(c.edit_one, jsonb_build_array(jsonb_build_object(
     'table','expenses','op','upsert','id','eeee5555-0000-4000-8000-00000000000e','order',1,
@@ -135,6 +158,9 @@ begin
          jsonb_array_length(public.share_read(c.view_two) -> 'expenses') = 0,
          jsonb_array_length(public.share_read(c.view_two) -> 'expenses') || ' expenses in the other event';
 end $$;
+
+set local role anon;
+set local request.jwt.claims = '{"role":"anon"}';
 
 do $$
 begin

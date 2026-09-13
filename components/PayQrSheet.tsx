@@ -2,6 +2,7 @@
 
 import type { Payee, Person } from '@/lib/types';
 import { formatMoney } from '@/lib/format';
+import { repaymentView } from '@/lib/split';
 import { buildPromptPayPayload, describePromptPayId } from '@/lib/promptpay';
 import { Avatar } from './Avatar';
 import { Photo } from './Photo';
@@ -17,9 +18,10 @@ export function PayQrSheet({
   payee,
   hueFrom,
   hueTo,
-  settled,
+  paid,
   onToggleSettled,
   onClose,
+  readOnly = false,
 }: {
   from: Person;
   to: Person;
@@ -28,12 +30,18 @@ export function PayQrSheet({
   payee: Payee | null;
   hueFrom: number;
   hueTo: number;
-  settled: boolean;
+  /** How much of this payment has already been handed over. */
+  paid: number;
   onToggleSettled: () => void;
   onClose: () => void;
+  readOnly?: boolean;
 }) {
+  // What is actually owed right now — the QR and every figure below follow this,
+  // so someone who has already paid half does not get asked for the whole again.
+  const { paid: alreadyPaid, left: due, done: settled } = repaymentView(amount, paid);
+
   // A number lets us bake the amount into the code; a pasted image cannot carry one.
-  const payload = payee?.promptPayId ? buildPromptPayPayload(payee.promptPayId, amount) : null;
+  const payload = payee?.promptPayId && due > 0 ? buildPromptPayPayload(payee.promptPayId, due) : null;
   const useGenerated = !!payload;
 
   return (
@@ -45,17 +53,19 @@ export function PayQrSheet({
           <button type="button" className="btn ghost" onClick={onClose}>
             Close
           </button>
-          <button
-            type="button"
-            className={settled ? 'btn' : 'btn primary'}
-            onClick={() => {
-              onToggleSettled();
-              onClose();
-            }}
-          >
-            <Check size={16} />
-            {settled ? 'Mark as not sent' : 'Mark as sent'}
-          </button>
+          {!readOnly && (
+            <button
+              type="button"
+              className={settled ? 'btn' : 'btn primary'}
+              onClick={() => {
+                onToggleSettled();
+                onClose();
+              }}
+            >
+              <Check size={16} />
+              {settled ? 'Mark as not sent' : 'Mark as sent'}
+            </button>
+          )}
         </>
       }
     >
@@ -69,10 +79,22 @@ export function PayQrSheet({
           <Avatar name={to.name} hue={hueTo} size="xs" />
           <span className="nm">{to.name}</span>
         </span>
-        <span className="pay-amount num">{formatMoney(amount, currencyCode)}</span>
+        <span className="pay-amount num">{formatMoney(due, currencyCode)}</span>
       </div>
 
-      {useGenerated ? (
+      {alreadyPaid > 0 && (
+        <p className="hint" style={{ marginTop: -3, marginBottom: 11, textAlign: 'center' }}>
+          {formatMoney(alreadyPaid, currencyCode)} of {formatMoney(amount, currencyCode)} has already
+          been paid{settled ? ' — nothing is left to send.' : ', so this is the rest.'}
+        </p>
+      )}
+
+      {settled ? (
+        <div className="empty">
+          <strong>Already paid</strong>
+          This one is done. Untick it below if that was a mistake.
+        </div>
+      ) : useGenerated ? (
         <>
           <div className="pay-qr-plate">
             <QrCode value={payload} size={260} />
@@ -80,7 +102,7 @@ export function PayQrSheet({
           <p className="hint" style={{ marginTop: 11, textAlign: 'center' }}>
             PromptPay to <b style={{ color: 'var(--text)' }}>{describePromptPayId(payee!.promptPayId!)}</b>
             {' — '}
-            <b style={{ color: 'var(--accent)' }}>{formatMoney(amount, currencyCode)} is already in the code</b>,
+            <b style={{ color: 'var(--accent)' }}>{formatMoney(due, currencyCode)} is already in the code</b>,
             so there is nothing to type in.
           </p>
           <p className="hint" style={{ marginTop: 9, textAlign: 'center' }}>
@@ -94,7 +116,7 @@ export function PayQrSheet({
           </div>
           <p className="hint" style={{ marginTop: 11, textAlign: 'center' }}>
             {to.name}&rsquo;s own QR. It has no amount in it, so type{' '}
-            <b style={{ color: 'var(--accent)' }}>{formatMoney(amount, currencyCode)}</b> yourself.
+            <b style={{ color: 'var(--accent)' }}>{formatMoney(due, currencyCode)}</b> yourself.
           </p>
         </>
       ) : (

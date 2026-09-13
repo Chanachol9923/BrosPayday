@@ -50,17 +50,18 @@ export function ProfileSheet({
   };
 
   return (
-    <Sheet title="Who's using this?" onClose={onClose}>
+    <Sheet title="Users on this device" onClose={onClose}>
       {onSignIn && (
         <>
           <div className="signin-offer">
             <span className="signin-offer-text">
-              <b>Only on this device.</b> Sign in and your events follow you to any phone or
-              laptop, and you can share one with a code. Nothing here is lost — it comes with you.
+              <b>These events live on this device only.</b> Sign in and they follow you to any
+              phone or laptop, the people you split with can edit alongside you, and nothing here
+              is lost — it all comes with you.
             </span>
             <button type="button" className="btn primary block" onClick={onSignIn}>
               <Cloud size={16} />
-              Sign in to sync
+              Sign in with Google
             </button>
           </div>
           <div className="divider" />
@@ -68,8 +69,8 @@ export function ProfileSheet({
       )}
 
       <p className="hint" style={{ marginBottom: 13 }}>
-        Each person gets their own events, history and presets on this device. No password —
-        it&rsquo;s just a way to keep separate tabs on the same phone or laptop.
+        The list below is not accounts — it is separate tabs on this one phone or laptop, each
+        with its own events, history and groups. Handy when you pass the phone around.
       </p>
 
       <div className="row-list">

@@ -120,14 +120,15 @@ export async function loadGroup(groupId: string): Promise<GroupData> {
   const partyRows = (partiesRes.data ?? []) as PartyRow[];
   const partyIds = partyRows.map((p) => p.id);
 
-  const [peopleRes, expenseRes, shareRes, photoRes] =
+  const [peopleRes, expenseRes, shareRes, photoRes, repayRes] =
     partyIds.length === 0
-      ? [{ data: [] }, { data: [] }, { data: [] }, { data: [] }]
+      ? [{ data: [] }, { data: [] }, { data: [] }, { data: [] }, { data: [] }]
       : await Promise.all([
           db.from('party_people').select('*').in('party_id', partyIds).order('sort_order'),
           db.from('expenses').select('*').in('party_id', partyIds).order('sort_order'),
           db.from('expense_shares').select('*'),
           db.from('photos').select('*').in('party_id', partyIds),
+          db.from('repayments').select('*').in('party_id', partyIds),
         ]);
 
   const sharesByExpense = new Map<string, { person_id: string; weight: number }[]>();
@@ -188,6 +189,16 @@ export async function loadGroup(groupId: string): Promise<GroupData> {
         addedAt: new Date(p.created_at).getTime(),
       }));
 
+    const repayments: Record<string, number> = {};
+    for (const r of (repayRes.data ?? []) as {
+      party_id: string;
+      from_person: string;
+      to_person: string;
+      amount_paid: number;
+    }[]) {
+      if (r.party_id === row.id) repayments[`${r.from_person}>${r.to_person}`] = Number(r.amount_paid);
+    }
+
     return {
       id: row.id,
       title: row.title,
@@ -196,6 +207,7 @@ export async function loadGroup(groupId: string): Promise<GroupData> {
       people,
       items,
       photos,
+      repayments,
       createdAt: new Date(row.created_at).getTime(),
       updatedAt: new Date(row.updated_at).getTime(),
     };
@@ -354,6 +366,29 @@ export async function applyOps(ops: RowOp[], ctx: { groupId: string; userId: str
         return;
       }
 
+      case 'repayments': {
+        if (op.op === 'delete') {
+          const { error } = await db
+            .from('repayments')
+            .delete()
+            .eq('party_id', op.partyId)
+            .eq('from_person', op.fromId)
+            .eq('to_person', op.toId);
+          if (error) throw error;
+          return;
+        }
+        const { error } = await db.from('repayments').upsert({
+          party_id: op.partyId,
+          from_person: op.fromId,
+          to_person: op.toId,
+          amount_paid: op.amountPaid,
+          updated_at: new Date().toISOString(),
+          updated_by: ctx.userId,
+        });
+        if (error) throw error;
+        return;
+      }
+
       case 'payees': {
         if (op.op === 'delete') {
           const { error } = await db.from('payees').delete().eq('group_id', ctx.groupId).eq('name_key', op.key);
@@ -391,6 +426,7 @@ export function subscribeToGroup(groupId: string, onChange: () => void): () => v
     .on('postgres_changes', { event: '*', schema: 'public', table: 'expenses' }, onChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'expense_shares' }, onChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'photos' }, onChange)
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'repayments' }, onChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'payees' }, onChange)
     .on('postgres_changes', { event: '*', schema: 'public', table: 'presets' }, onChange)
     .subscribe();
@@ -460,6 +496,7 @@ export async function readSharedParty(token: string): Promise<SharedPartyView | 
       shares: { person_id: string; weight: number }[];
     }[];
     photos: { id: string; expense_id: string | null; bytes: number; w: number; h: number; created_at: string }[];
+    repayments?: { from_person: string; to_person: string; amount_paid: number }[];
   };
 
   return {
@@ -490,6 +527,9 @@ export async function readSharedParty(token: string): Promise<SharedPartyView | 
         h: p.h,
         addedAt: new Date(p.created_at).getTime(),
       })),
+      repayments: Object.fromEntries(
+        (raw.repayments ?? []).map((r) => [`${r.from_person}>${r.to_person}`, Number(r.amount_paid)]),
+      ),
       createdAt: new Date(raw.party.created_at).getTime(),
       updatedAt: new Date(raw.party.updated_at).getTime(),
     },
@@ -497,12 +537,27 @@ export async function readSharedParty(token: string): Promise<SharedPartyView | 
 }
 
 /** Push changes made by someone holding an edit link. The database re-checks the role. */
+/** What this link lets the current visitor do — which depends on being signed in. */
+export async function shareCapability(token: string): Promise<'none' | 'view' | 'view_until_signed_in' | 'edit'> {
+  const db = supabase();
+  if (!db) return 'none';
+  const { data, error } = await db.rpc('share_capability', { tok: token });
+  if (error) return 'none';
+  return (data as 'none' | 'view' | 'view_until_signed_in' | 'edit') ?? 'none';
+}
+
 export async function writeSharedParty(token: string, ops: RowOp[]): Promise<void> {
   const db = supabase();
   if (!db || ops.length === 0) return;
 
   const payload = ops
-    .filter((o) => o.table === 'expenses' || o.table === 'expense_shares' || o.table === 'party_people')
+    .filter(
+      (o) =>
+        o.table === 'expenses' ||
+        o.table === 'expense_shares' ||
+        o.table === 'party_people' ||
+        o.table === 'repayments',
+    )
     .map((o) => {
       if (o.table === 'expenses' && o.op === 'upsert') {
         return { table: o.table, op: o.op, id: o.id, order: o.order, item: o.item };

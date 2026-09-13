@@ -63,11 +63,13 @@ import {
 import { CloudGate, CloudLoading } from '@/components/CloudGate';
 import { AccountSheet } from '@/components/AccountSheet';
 import { OpenCodeSheet } from '@/components/OpenCodeSheet';
+import { AccessSheet } from '@/components/AccessSheet';
 import { diffParty } from '@/lib/cloud/diff';
-import type { ShareLink } from '@/lib/cloud/api';
+import type { EventPerson, ShareLink } from '@/lib/cloud/api';
 import {
   applyOps,
   eventShareCode,
+  listEventAccess,
   listShareLinks,
   readSharedParty,
   revokeEventShare,
@@ -103,7 +105,7 @@ import {
 } from '@/components/Icons';
 
 type SheetState = { draft: Item; isNew: boolean } | null;
-type Modal = null | 'profiles' | 'history' | 'presets' | 'share' | 'opencode';
+type Modal = null | 'profiles' | 'history' | 'presets' | 'share' | 'opencode' | 'access';
 
 const MODE_KEY = 'brospayday.mode';
 const MIGRATED_KEY = 'brospayday.migrated';
@@ -130,6 +132,7 @@ export default function Page() {
   const [shareLoading, setShareLoading] = useState(false);
   const [cloudLinks, setCloudLinks] = useState<ShareLink[]>([]);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
+  const [access, setAccess] = useState<EventPerson[]>([]);
   const [signInFailed, setSignInFailed] = useState(false);
   const [badCode, setBadCode] = useState(false);
   const sharedBase = useRef<Party | null>(null);
@@ -310,6 +313,24 @@ export default function Page() {
     : (profile?.name ?? '?');
 
   const result = useMemo(() => computeSplit(party), [party]);
+
+  // Who is on this event, for the faces in the header.
+  useEffect(() => {
+    if (!usingCloud || cloud.status !== 'ready' || !party.id) {
+      setAccess([]);
+      return;
+    }
+    let alive = true;
+    listEventAccess(party.id)
+      .then((found) => {
+        if (alive) setAccess(found);
+      })
+      .catch(() => undefined);
+    return () => {
+      alive = false;
+    };
+  }, [usingCloud, cloud.status, party.id, modal]);
+
 
   // Someone holding an edit link: push just their party, through the token.
   useEffect(() => {
@@ -788,6 +809,27 @@ export default function Page() {
 
           <span className="topbar-spacer" />
 
+          {usingCloud && access.length > 0 && !shareMode && (
+            <button
+              type="button"
+              className="access-chip"
+              onClick={() => setModal('access')}
+              aria-label={`${access.filter((p) => !p.isBanned).length} people can edit this event`}
+            >
+              <span className="stack">
+                {access
+                  .filter((p) => !p.isBanned)
+                  .slice(0, 3)
+                  .map((p, i) => (
+                    <Avatar key={p.userId} name={p.name} hue={hueForIndex(i)} size="xs" />
+                  ))}
+                {access.filter((p) => !p.isBanned).length > 3 && (
+                  <span className="more">+{access.filter((p) => !p.isBanned).length - 3}</span>
+                )}
+              </span>
+            </button>
+          )}
+
           <button
             type="button"
             className="icon-btn"
@@ -1098,6 +1140,16 @@ export default function Page() {
       )}
 
       {modal === 'opencode' && <OpenCodeSheet onClose={() => setModal(null)} />}
+
+      {modal === 'access' && usingCloud && (
+        <AccessSheet
+          partyId={party.id}
+          currencyCode={party.currencyCode}
+          viewerId={cloud.user?.id ?? null}
+          onToast={setToast}
+          onClose={() => setModal(null)}
+        />
+      )}
 
       {modal === 'share' && (
         <ShareSheet

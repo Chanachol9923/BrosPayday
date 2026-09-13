@@ -1664,3 +1664,73 @@ table.grid .cellname { display: flex; align-items: center; gap: 7px; }
 .menu button.accent:hover { background: color-mix(in srgb, var(--accent) 22%, transparent); }
 
 .invite-label { margin-top: 15px; color: var(--accent); }
+
+/* ── the faces in the header ────────────────────────────────────── */
+.access-chip {
+  display: inline-flex;
+  align-items: center;
+  height: var(--tap);
+  padding: 0 8px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  flex-shrink: 0;
+}
+.access-chip:hover { background: var(--surface-2); border-color: var(--border-strong); }
+.access-chip .av { box-shadow: inset 0 0 0 1px hsl(var(--person-h) 45% 34%), 0 0 0 2px var(--surface); }
+.access-chip .more { box-shadow: 0 0 0 2px var(--surface); }
+
+/* ── who is on it ───────────────────────────────────────────────── */
+.row-card.banned { opacity: 0.55; border-style: dashed; }
+
+.row-you {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--text-faint);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+.label svg { vertical-align: -2px; margin-right: 5px; }
+
+/* ── what happened ──────────────────────────────────────────────── */
+.log-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.log-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.log-row:last-child { border-bottom: 0; }
+.log-row .av { margin-top: 1px; }
+
+.log-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text-dim);
+}
+.log-text b { color: var(--text); font-weight: 640; }
+.log-actor { white-space: nowrap; }
+.log-amount { color: var(--accent); font-weight: 700; }
+
+.log-when {
+  flex-shrink: 0;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  white-space: nowrap;
+  padding-top: 1px;
+}

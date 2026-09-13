@@ -513,3 +513,80 @@ export async function writeSharedParty(token: string, ops: RowOp[]): Promise<voi
   const { error } = await db.rpc('share_write', { tok: token, ops: payload });
   if (error) throw error;
 }
+
+/* ── who is on an event, and what they did ───────────────────────── */
+
+export type EventPerson = {
+  userId: string;
+  name: string;
+  avatar: string | null;
+  isOwner: boolean;
+  isBanned: boolean;
+};
+
+export type LogEntry = {
+  id: number;
+  actorId: string | null;
+  actorName: string;
+  action: string;
+  subject: string;
+  amount: number | null;
+  at: number;
+};
+
+export async function listEventAccess(partyId: string): Promise<EventPerson[]> {
+  const { data, error } = await client().rpc('event_access', { p_party_id: partyId });
+  if (error) throw error;
+
+  return ((data ?? []) as {
+    user_id: string;
+    display_name: string;
+    avatar_url: string | null;
+    is_owner: boolean;
+    is_banned: boolean;
+  }[]).map((r) => ({
+    userId: r.user_id,
+    name: r.display_name,
+    avatar: r.avatar_url,
+    isOwner: r.is_owner,
+    isBanned: r.is_banned,
+  }));
+}
+
+export async function setEventBan(partyId: string, userId: string, banned: boolean): Promise<void> {
+  const { error } = await client().rpc('set_event_ban', {
+    p_party_id: partyId,
+    p_user_id: userId,
+    p_banned: banned,
+  });
+  if (error) throw error;
+}
+
+export async function listEventLog(partyId: string, limit = 80): Promise<LogEntry[]> {
+  const { data, error } = await client()
+    .from('event_log')
+    .select('id, actor_id, actor_name, action, subject, amount, at')
+    .eq('party_id', partyId)
+    .order('at', { ascending: false })
+    .limit(limit);
+
+  if (error) throw error;
+
+  return ((data ?? []) as {
+    id: number;
+    actor_id: string | null;
+    actor_name: string;
+    action: string;
+    subject: string;
+    amount: number | null;
+    at: string;
+  }[]).map((r) => ({
+    id: r.id,
+    actorId: r.actor_id,
+    actorName: r.actor_name,
+    action: r.action,
+    subject: r.subject,
+    amount: r.amount === null ? null : Number(r.amount),
+    at: new Date(r.at).getTime(),
+  }));
+}

@@ -100,7 +100,7 @@ export function ShareSheet({
               const existing = cloudLinks.find((l) => l.role === role);
               // The card's heading and the word used mid-sentence are not the same
               // thing: "Revoke the join group link (can edit) code?" reads badly.
-              const heading = role === 'edit' ? 'Join Group Link (Can Edit)' : 'View only';
+              const heading = role === 'edit' ? 'Invite to Join Event (Can Edit)' : 'View only';
               const shortName = role === 'edit' ? 'edit' : 'view';
 
               return (

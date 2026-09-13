@@ -127,7 +127,7 @@ export function PeoplePanel({
               }
             }}
             onBlur={commit}
-            placeholder={people.length === 0 ? 'Q, M, F, B, Y' : 'Add a name…'}
+            placeholder={people.length === 0 ? 'Members (Ex. Q, M, F, B, Y)' : 'Add a name…'}
             aria-label="Add people"
             autoComplete="off"
             enterKeyHint="done"

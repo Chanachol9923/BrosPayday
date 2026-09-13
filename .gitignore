@@ -4,8 +4,12 @@ out
 build
 .DS_Store
 *.pem
-.env*.local
+
+# credentials and local config
+.env*
 .vercel
+
+# generated
 next-env.d.ts
 *.tsbuildinfo
 .verify

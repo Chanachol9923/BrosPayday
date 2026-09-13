@@ -79,8 +79,28 @@ select public.event_share_code('c3330000-0000-4000-8000-0000000000e3','view') as
        public.event_share_code('c3330000-0000-4000-8000-0000000000e3','edit') as edit_code;
 grant all on codes to authenticated, anon;
 
+-- How to pay people back has to travel with a link, or the settle-up screen
+-- tells every link holder that nobody has a QR. Zelda is in the same workspace
+-- but not on this event, and must not travel with it.
+insert into public.payees (group_id, name_key, display_name, promptpay_id)
+select gid, 'a', 'A', '0812345678' from ctx;
+insert into public.payees (group_id, name_key, display_name, promptpay_id)
+select gid, 'zelda', 'Zelda', '0899999999' from ctx;
+
 set local role anon;
 set local request.jwt.claims = '{"role":"anon"}';
+
+insert into findings (check_name, passed, detail)
+select 'a link carries how to pay back the people on it',
+       (public.share_read(view_code) -> 'payees')::jsonb @> '[{"promptpay_id": "0812345678"}]'::jsonb,
+       coalesce(public.share_read(view_code) #>> '{payees}', 'none')
+from codes;
+
+insert into findings (check_name, passed, detail)
+select 'and only for the people actually on it — not the whole address book',
+       not ((public.share_read(view_code) -> 'payees')::jsonb @> '[{"promptpay_id": "0899999999"}]'::jsonb),
+       coalesce(public.share_read(view_code) #>> '{payees}', 'none')
+from codes;
 
 insert into findings (check_name, passed, detail)
 select 'a link shows what one person had to themselves',

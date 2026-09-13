@@ -37,7 +37,18 @@ function sliceOf(store: Store, groupId: string): GroupSlice {
   };
 }
 
-export function useCloud(store: Store, setStore: (next: Store | ((prev: Store) => Store)) => void) {
+/**
+ * @param paused Stop reading and writing the account's own data, while keeping
+ *   the session. Set while an event opened through a share link is on screen:
+ *   that event sits in the same store this hook syncs, so left running it would
+ *   overwrite what the link came to show, and push somebody else's night into
+ *   the viewer's own workspace.
+ */
+export function useCloud(
+  store: Store,
+  setStore: (next: Store | ((prev: Store) => Store)) => void,
+  paused = false,
+) {
   const [status, setStatus] = useState<CloudStatus>(cloudConfigured ? 'loading' : 'off');
   const [user, setUser] = useState<User | null>(null);
   const [groups, setGroups] = useState<CloudGroup[]>([]);
@@ -116,8 +127,9 @@ export function useCloud(store: Store, setStore: (next: Store | ((prev: Store) =
   }, [user]);
 
   useEffect(() => {
+    if (paused) return;
     if (user) void refreshGroups();
-  }, [user, refreshGroups]);
+  }, [user, refreshGroups, paused]);
 
   /* ── pull a Group's data into the store ─────────────────────────── */
   const pull = useCallback(
@@ -154,16 +166,16 @@ export function useCloud(store: Store, setStore: (next: Store | ((prev: Store) =
   );
 
   useEffect(() => {
-    if (!activeGroupId || !user) return;
+    if (paused || !activeGroupId || !user) return;
     localStorage.setItem(LAST_GROUP_KEY, activeGroupId);
     void pull(activeGroupId);
     // groups is intentionally out of the deps: renaming one should not refetch
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeGroupId, user]);
+  }, [activeGroupId, user, paused]);
 
   /* ── push local changes up ─────────────────────────────────────── */
   useEffect(() => {
-    if (status !== 'ready' || !activeGroupId || !user) return;
+    if (paused || status !== 'ready' || !activeGroupId || !user) return;
     if (applying.current) return;
 
     const base = confirmed.current;
@@ -196,7 +208,7 @@ export function useCloud(store: Store, setStore: (next: Store | ((prev: Store) =
 
   /* ── somebody else changed something ───────────────────────────── */
   useEffect(() => {
-    if (status !== 'ready' || !activeGroupId) return;
+    if (paused || status !== 'ready' || !activeGroupId) return;
 
     let timer: ReturnType<typeof setTimeout> | null = null;
     const unsubscribe = subscribeToGroup(activeGroupId, () => {
@@ -211,7 +223,7 @@ export function useCloud(store: Store, setStore: (next: Store | ((prev: Store) =
       if (timer) clearTimeout(timer);
       unsubscribe();
     };
-  }, [status, activeGroupId, pull]);
+  }, [status, activeGroupId, pull, paused]);
 
   /* ── actions ───────────────────────────────────────────────────── */
   /**

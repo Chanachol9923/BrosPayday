@@ -122,8 +122,9 @@ export function PayQrSheet({
       ) : (
         <div className="empty">
           <strong>No payment QR yet</strong>
-          {to.name} hasn&rsquo;t added one. Tap their avatar in the members list to paste a QR
-          screenshot or type a PromptPay number.
+          {readOnly
+            ? `${to.name} has not added a PromptPay number, or added a QR picture instead — pictures stay with the people on the event and do not travel in a link. Ask them for a number and this will build the code for you.`
+            : `${to.name} hasn’t added one. Tap their avatar in the members list to paste a QR screenshot or type a PromptPay number.`}
         </div>
       )}
     </Sheet>

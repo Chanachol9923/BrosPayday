@@ -865,6 +865,27 @@ section('cloud sync — turning edits into row writes');
       : fail(`clearing emitted ${JSON.stringify(cleared)}`);
   }
 
+
+  // Opening somebody else's link puts their event into the same store the cloud
+  // syncs. This is what would reach the database if the cloud were left running
+  // while a shared event is on screen — the reason it is paused instead.
+  {
+    const mine = { ...referenceParty(), id: 'my_party', title: 'My night' };
+    const theirs = { ...referenceParty(), id: 'their_party', title: 'Their night' };
+
+    const confirmed = slice(mine);
+    const whileViewingTheirs = slice(theirs);
+
+    const ops = diffGroup(confirmed, whileViewingTheirs);
+    const wouldUpload = ops.some(
+      (o) => o.table === 'parties' && o.op === 'upsert' && o.id === 'their_party',
+    );
+
+    wouldUpload
+      ? ok('a shared event sitting in the store would be uploaded as the viewer’s own — which is why the cloud is paused while one is open')
+      : fail('the leak this documents no longer reproduces; check whether the pause is still needed');
+  }
+
   // adding a person, and removing one
   const added = { ...base, people: [...base.people, { id: 'p_new', name: 'Z' }] };
   const addOps = diffParty(base, added);

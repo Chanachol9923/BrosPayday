@@ -9,7 +9,9 @@ export function OpenCodeSheet({ onClose }: { onClose: () => void }) {
   const [code, setCode] = useState('');
 
   const clean = code.replace(/[^A-Za-z0-9]/g, '').toUpperCase();
-  const ready = clean.length >= 6;
+  // Codes are exactly eight. Accepting six meant sending a request that could
+  // only ever come back empty, and blaming the code for it.
+  const ready = clean.length === 8;
 
   const open = () => {
     if (!ready) return;
@@ -53,7 +55,9 @@ export function OpenCodeSheet({ onClose }: { onClose: () => void }) {
       />
 
       <p className="hint" style={{ marginTop: 9 }}>
-        Eight characters, dash optional.
+        {clean.length === 0 || ready
+          ? 'Eight characters, dash optional.'
+          : `Eight characters, dash optional — ${clean.length} so far.`}
       </p>
     </Sheet>
   );

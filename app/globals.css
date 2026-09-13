@@ -1053,6 +1053,14 @@ table.grid .cellname { display: flex; align-items: center; gap: 7px; }
  * shared event is that they can see it; the other half is that they can see,
  * straight away, that it is not theirs to change.
  */
+/*
+ * The hidden attribute loses to any display rule in a stylesheet, so a button
+ * marked hidden that happens to be display:flex stays on screen — which is how
+ * the history, profile and menu buttons were still reachable inside a shared
+ * event. Make the attribute mean what everyone reading the markup assumes.
+ */
+[hidden] { display: none !important; }
+
 input[readonly] { color: var(--text-dim); cursor: default; }
 input[readonly]::placeholder { color: var(--text-faint); }
 .field[readonly]:focus,
@@ -1827,6 +1835,31 @@ input[readonly]::placeholder { color: var(--text-faint); }
   white-space: nowrap;
 }
 .signin-chip:hover { border-color: var(--accent); }
+
+/* The way out of a shared event. Plain, because leaving is not the point of the
+   screen — but always there, because a link with no way back is a trap. */
+.leave-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 11px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 620;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+.leave-chip:hover { color: var(--text); border-color: var(--accent); }
+
+@media (max-width: 460px) {
+  /* The label is the first thing to go; the cross still reads as "out of here". */
+  .leave-chip { padding: 0 9px; font-size: 0; gap: 0; }
+  .leave-chip svg { font-size: 13px; }
+}
 
 @media (max-width: 344px) {
   /* Only on the very narrowest phones does the mark have to carry it alone. */

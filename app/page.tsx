@@ -104,6 +104,7 @@ import {
   Plus,
   Share,
   Trash,
+  X,
 } from '@/components/Icons';
 
 type SheetState = { draft: Item; isNew: boolean } | null;
@@ -141,15 +142,29 @@ export default function Page() {
   const [cloudLinks, setCloudLinks] = useState<ShareLink[]>([]);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [viewUrl, setViewUrl] = useState<string | null>(null);
+  /** How to pay people back, when the event arrived through a link. */
+  const [sharedPayees, setSharedPayees] = useState<Payee[]>([]);
   const [access, setAccess] = useState<EventPerson[]>([]);
   const [signInFailed, setSignInFailed] = useState(false);
   const [badCode, setBadCode] = useState(false);
+  /**
+   * True from the very first render when the address carries a share code —
+   * before anything has been fetched. The cloud has to be held off from that
+   * moment, not from whenever the fetch lands, or the two race for the store.
+   */
+  const [sharePending, setSharePending] = useState(() =>
+    typeof window === 'undefined' ? false : new URLSearchParams(window.location.search).has('s'),
+  );
   const sharedBase = useRef<Party | null>(null);
   const didLoad = useRef(false);
 
   useKeyboardInset();
 
-  const cloud = useCloud(store, setStore);
+  // A shared event lives in the same store the cloud syncs. Left running, the
+  // cloud would pull the viewer's own events over the top of what the link came
+  // to show — and push the shared event up into their workspace as if it were
+  // theirs. Neither belongs to them.
+  const cloud = useCloud(store, setStore, sharePending || !!shareMode);
   /** Cloud is in charge of the data — the local store is not persisted in this mode. */
   const usingCloud = cloud.configured && !localOnly && !shareMode;
   /** A view link may look at everything and change nothing — and so may an
@@ -177,47 +192,66 @@ export default function Page() {
       setSignInFailed(true);
     }
 
+    // Read before anything else: a code that turns out to be wrong has to put the
+    // app back the way this person had it, and that is not knowable afterwards.
+    const chosenLocal = localStorage.getItem(MODE_KEY) === 'local';
+    if (chosenLocal) setLocalOnly(true);
+
+    /** Start the app the way this device normally starts. */
+    const startNormally = () => {
+      if (cloudConfigured && !chosenLocal) {
+        // useCloud pulls the Group's data; touching the local store here would
+        // briefly show someone else's device state and then fight the sync.
+        setLoaded(true);
+        return;
+      }
+
+      // Nothing is seeded — a first visit and a later visit both begin on an
+      // empty sheet, and whatever was open last time goes to history.
+      const { store: saved } = loadStore();
+      const { store: next, archived } = startSession(saved, saved.activeProfileId);
+      setStore(next);
+      if (archived) setToast(`“${partyLabel(archived)}” saved to history`);
+      setLoaded(true);
+    };
+
     const token = search.get('s');
     if (token && cloudConfigured) {
       setShareLoading(true);
-      setLoaded(true);
       void readSharedParty(token)
         .then((found) => {
           if (!found) {
-            // The gate replaces the page from here, so a toast would never be
-            // seen; the message has to travel to the screen that actually renders.
+            // A wrong code must not cost somebody their app. Drop the token from
+            // the address bar, start the way this device always starts, and say
+            // what happened — on the gate for anyone who lands there, and as a
+            // toast for everyone else.
+            history.replaceState(null, '', window.location.pathname);
+            setSharePending(false);
             setBadCode(true);
+            setToast('That code does not open anything — check it and try again');
+            startNormally();
             return;
           }
           setShareMode({ token, role: found.role, signInToEdit: found.role === 'edit' });
+          setSharedPayees(found.payees);
           sharedBase.current = found.party;
           setStore((prev) => ({
             ...prev,
             current: { ...prev.current, [prev.activeProfileId]: found.party },
           }));
+          setLoaded(true);
+        })
+        .catch(() => {
+          history.replaceState(null, '', window.location.pathname);
+          setSharePending(false);
+          setToast('Could not open that link — check your connection and try again');
+          startNormally();
         })
         .finally(() => setShareLoading(false));
       return;
     }
 
-    const chosenLocal = localStorage.getItem(MODE_KEY) === 'local';
-    if (chosenLocal) setLocalOnly(true);
-
-    if (cloudConfigured && !chosenLocal) {
-      // useCloud pulls the Group's data; touching the local store here would
-      // briefly show someone else's device state and then fight the sync.
-      setLoaded(true);
-      return;
-    }
-
-    // Nothing is seeded — a first visit and a later visit both begin on an
-    // empty sheet, and whatever was open last time goes to history.
-    const { store: saved } = loadStore();
-    const { store: next, archived } = startSession(saved, saved.activeProfileId);
-    setStore(next);
-    if (archived) setToast(`“${partyLabel(archived)}” saved to history`);
-
-    setLoaded(true);
+    startNormally();
   }, []);
 
   useEffect(() => {
@@ -490,10 +524,19 @@ export default function Page() {
     (personId: string): Payee | null => {
       const person = party.people.find((p) => p.id === personId);
       if (!person) return null;
+
+      // Someone holding a link has none of this device's payment details, and
+      // should not: what they get is what came with the event itself.
+      if (shareMode) {
+        const key = person.name.trim().toLowerCase();
+        const found = sharedPayees.find((y) => y.name.trim().toLowerCase() === key) ?? null;
+        return hasPaymentDetails(found) ? found : null;
+      }
+
       const found = lookupPayee(store, profileId, person.name);
       return hasPaymentDetails(found) ? found : null;
     },
-    [party.people, store, profileId],
+    [party.people, store, profileId, shareMode, sharedPayees],
   );
 
   const setMemberQr = async (personId: string, file: File) => {
@@ -919,16 +962,36 @@ export default function Page() {
             </button>
           )}
 
-          <button
-            type="button"
-            className="icon-btn"
-            hidden={!!shareMode}
-            onClick={() => setModal('history')}
-            aria-label={`History — ${historyList.length} saved`}
-          >
-            <Clock />
-            {historyList.length > 0 && <span className="dot-badge" />}
-          </button>
+          {/* Not rendered at all inside a shared event: none of it is theirs, and
+              the menu in particular could start, archive or delete somebody
+              else's night from a link. */}
+          {!shareMode && (
+            <button
+              type="button"
+              className="icon-btn"
+              onClick={() => setModal('history')}
+              aria-label={`History — ${historyList.length} saved`}
+            >
+              <Clock />
+              {historyList.length > 0 && <span className="dot-badge" />}
+            </button>
+          )}
+
+          {/* A link is a one-way door without this. Every other control up here is
+              hidden in share mode, so somebody who opened a code had no way back
+              to their own events except editing the address bar. */}
+          {shareMode && (
+            <button
+              type="button"
+              className="leave-chip"
+              onClick={() => {
+                window.location.href = `${window.location.origin}/`;
+              }}
+            >
+              <X size={14} />
+              Back to my events
+            </button>
+          )}
 
           {/* Nobody signed in: the way to do it sits next to whoever is making the
               event, not buried two taps deep in a sheet. */}
@@ -944,10 +1007,10 @@ export default function Page() {
             </button>
           )}
 
+          {!shareMode && (
           <button
             type="button"
             className="profile-btn"
-            hidden={!!shareMode}
             onClick={() => setModal('profiles')}
             aria-label={`Signed in as ${profile?.name ?? 'user'} — switch user`}
           >
@@ -956,12 +1019,13 @@ export default function Page() {
             {usingCloud && cloud.syncing && <span className="sync-dot" aria-label="saving" />}
             <Chevron size={14} />
           </button>
+          )}
 
+          {!shareMode && (
           <span className="menu-wrap">
             <button
               type="button"
               className="icon-btn"
-              hidden={!!shareMode}
               onClick={() => setMenuOpen((v) => !v)}
               aria-label="More options"
               aria-expanded={menuOpen}
@@ -1033,6 +1097,7 @@ export default function Page() {
               </>
             )}
           </span>
+          )}
         </div>
       </header>
 

@@ -489,7 +489,12 @@ export async function listShareLinks(partyId: string): Promise<ShareLink[]> {
   return (data ?? []) as ShareLink[];
 }
 
-export type SharedPartyView = { role: 'view' | 'edit'; party: Party };
+export type SharedPartyView = {
+  role: 'view' | 'edit';
+  party: Party;
+  /** How to pay back the people on this event, for whoever holds the link. */
+  payees: Payee[];
+};
 
 /** Read a party with nothing but a link. No sign-in, no Group. */
 export async function readSharedParty(token: string): Promise<SharedPartyView | null> {
@@ -512,10 +517,17 @@ export async function readSharedParty(token: string): Promise<SharedPartyView | 
     }[];
     photos: { id: string; expense_id: string | null; bytes: number; w: number; h: number; created_at: string }[];
     repayments?: { from_person: string; to_person: string; amount_paid: number }[];
+    payees?: { name: string; promptpay_id: string | null }[];
   };
 
   return {
     role: raw.role,
+    // Only what can actually be used through a link: a pasted QR image lives in
+    // storage, which a link holder cannot read, so it is not offered at all
+    // rather than offered and then failing to load.
+    payees: (raw.payees ?? [])
+      .filter((y) => !!y.promptpay_id)
+      .map((y) => ({ name: y.name, promptPayId: y.promptpay_id, updatedAt: 0 })),
     party: {
       id: raw.party.id,
       title: raw.party.title,

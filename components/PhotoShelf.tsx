@@ -65,6 +65,18 @@ export function PhotoShelf({
       </div>
 
       <div className="card-body">
+        {readOnly ? (
+          // The pictures themselves live in storage, which a link holder cannot
+          // read. Tiles that can never fill in are worse than saying so.
+          <p className="hint" style={{ margin: 0 }}>
+            {photos.length === 1
+              ? 'One receipt was photographed on the night.'
+              : `${photos.length} receipts were photographed on the night.`}{' '}
+            The pictures stay with the people on the event — a link carries the numbers, not the
+            photos.
+          </p>
+        ) : (
+        <>
         <div
           className={`photo-grid${dragging ? ' dragging' : ''}`}
           onDragOver={(e) => {
@@ -112,27 +124,25 @@ export function PhotoShelf({
           )}
         </div>
 
-        {!readOnly && (
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            multiple
-            hidden
-            onChange={(e) => {
-              takeFiles(e.target.files);
-              e.target.value = '';
-            }}
-          />
-        )}
+        <input
+          ref={fileRef}
+          type="file"
+          accept="image/*"
+          multiple
+          hidden
+          onChange={(e) => {
+            takeFiles(e.target.files);
+            e.target.value = '';
+          }}
+        />
 
         <p className="hint" style={{ marginTop: 10 }}>
-          {readOnly
-            ? 'Tap one to see it full size.'
-            : photos.length === 0
-              ? 'Snap receipts as you go — as many as you like. Tap one later to attach it to an expense.'
-              : 'Stored on this device only. Photos do not travel in a share link.'}
+          {photos.length === 0
+            ? 'Snap receipts as you go — as many as you like. Tap one later to attach it to an expense.'
+            : 'Stored on this device only. Photos do not travel in a share link.'}
         </p>
+        </>
+        )}
       </div>
     </section>
   );

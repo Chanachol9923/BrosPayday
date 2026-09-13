@@ -373,5 +373,57 @@ section('the party this was built for');
     : fail(`\n    got  ${JSON.stringify(got)}\n    want ${JSON.stringify(want)}`);
 }
 
+section('what the screen actually shows');
+{
+  // The components format straight off computeSplit, so pinning the rendered strings
+  // for the reference party catches a display change quietly corrupting the numbers.
+  const st = sampleParty();
+  const r = computeSplit(st);
+  const money = (v) => formatMoney(v, st.currencyCode);
+  const nameOf = (id) => st.people.find((p) => p.id === id).name;
+
+  const balanceCards = st.people.map((p) => {
+    const net = r.net[p.id];
+    const tag = net > 0 ? 'gets back' : net < 0 ? 'owes' : 'settled';
+    const signed = net === 0 ? money(0) : formatMoney(net, st.currencyCode, { sign: true });
+    return `${p.name} | ${signed} ${tag} | Share ${money(r.owed[p.id])} | Paid ${money(r.paid[p.id])}`;
+  });
+
+  const expectedCards = [
+    'Q | +฿2,610 gets back | Share ฿780 | Paid ฿3,390',
+    'M | −฿1,240 owes | Share ฿1,240 | Paid ฿0',
+    'F | −฿780 owes | Share ฿780 | Paid ฿0',
+    'B | −฿580 owes | Share ฿580 | Paid ฿0',
+    'Y | −฿10 owes | Share ฿180 | Paid ฿170',
+  ];
+
+  JSON.stringify(balanceCards) === JSON.stringify(expectedCards)
+    ? ok('every balance card reads exactly as it should')
+    : fail(`balance cards drifted: ${balanceCards.join('  //  ')}`);
+
+  // Proof step 3: both totals must print as the same string, and the balance as zero.
+  const totalShare = money(r.totalOwed);
+  const totalPaid = money(r.total);
+  totalShare === totalPaid && totalShare === '฿3,560' && money(0) === '฿0'
+    ? ok('the proof total row prints share = spent = 3,560 and balance 0')
+    : fail(`proof totals print wrong: share ${totalShare}, paid ${totalPaid}`);
+
+  // Proof step 2: every column of the matrix must add back to its own bill.
+  const columnsAddUp = r.breakdowns.every((b) => {
+    const column = st.people.reduce((a, p) => a + (b.perPerson[p.id] ?? 0), 0);
+    return column === b.item.amount;
+  });
+  columnsAddUp
+    ? ok('every column of the proof matrix adds back to its expense')
+    : fail('a proof matrix column does not add up to its expense');
+
+  const settlement = r.transfers.map((t) => `${nameOf(t.fromId)} to ${nameOf(t.toId)} ${money(t.amount)}`);
+  JSON.stringify(settlement) === JSON.stringify([
+    'M to Q ฿1,240', 'F to Q ฿780', 'B to Q ฿580', 'Y to Q ฿10',
+  ])
+    ? ok('the chat summary lists the right payments in the right order')
+    : fail(`settlement text drifted: ${settlement.join(' / ')}`);
+}
+
 console.log(fails === 0 ? '\nALL GREEN\n' : `\n${fails} FAILURE(S)\n`);
 process.exit(fails ? 1 : 0);

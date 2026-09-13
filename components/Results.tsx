@@ -153,16 +153,21 @@ export function Results({
                     <Avatar name={p.name} hue={hueOf(p.id)} />
                     <span className="bal-main">
                       <span className="bal-name">{p.name || 'Unnamed'}</span>
-                      <span className="bal-sub num">
-                        Share {money(result.owed[p.id] ?? 0)} · Paid {money(result.paid[p.id] ?? 0)}
+                      <span className="bal-settle">
+                        <span className={`bal-net num ${tone}`}>
+                          {net === 0 ? money(0) : formatMoney(net, currencyCode, { sign: true })}
+                        </span>
+                        <span className="bal-tag">
+                          {net > 0 ? 'gets back' : net < 0 ? 'owes' : 'settled'}
+                        </span>
                       </span>
                     </span>
                     <span className="bal-right">
-                      <span className={`bal-net num ${tone}`}>
-                        {net === 0 ? money(0) : formatMoney(net, currencyCode, { sign: true })}
+                      <span className="bal-share num">
+                        Share {money(result.owed[p.id] ?? 0)}
                       </span>
-                      <span className="bal-tag">
-                        {net > 0 ? 'gets back' : net < 0 ? 'owes' : 'settled'}
+                      <span className="bal-paid num">
+                        Paid {money(result.paid[p.id] ?? 0)}
                       </span>
                     </span>
                   </div>

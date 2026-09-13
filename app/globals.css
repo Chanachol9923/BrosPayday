@@ -445,12 +445,31 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* What each person actually spent is the headline; the transfer is the footnote. */
 .bal-right { text-align: right; flex-shrink: 0; }
-.bal-net { display: block; font-size: 16px; font-weight: 750; letter-spacing: -0.02em; white-space: nowrap; }
+.bal-share {
+  display: block;
+  font-size: 16px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  white-space: nowrap;
+}
+.bal-paid {
+  display: block;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-dim);
+  margin-top: 1px;
+  white-space: nowrap;
+}
+
+.bal-settle { display: flex; align-items: baseline; gap: 5px; margin-top: 2px; }
+.bal-net { font-size: 13px; font-weight: 700; white-space: nowrap; }
 .bal-net.pos { color: var(--pos); }
 .bal-net.neg { color: var(--neg); }
 .bal-net.zero { color: var(--text-faint); }
-.bal-tag { display: block; font-size: 11px; color: var(--text-faint); margin-top: 1px; white-space: nowrap; }
+.bal-tag { font-size: 11.5px; color: var(--text-faint); white-space: nowrap; }
 
 /* ── proof ─────────────────────────────────────────────────────── */
 .proof-step + .proof-step { margin-top: 18px; padding-top: 18px; border-top: 1px solid var(--border); }

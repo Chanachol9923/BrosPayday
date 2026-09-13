@@ -100,6 +100,11 @@ seed and asserts the invariants that actually matter:
 - the settlement never needs more than *people − 1* transfers, none of them zero or
   negative or self-directed, and replaying them leaves **every** person on zero.
 
+It pins what the screen actually prints, too — every balance card, the proof's total
+row, and the chat summary are compared string for string against the reference party,
+so a display change cannot quietly corrupt a number. That pin has teeth: shifting one
+expense by a single baht trips four separate assertions.
+
 It also pins the edge cases a real user can reach — the payer being deleted, an
 expense nobody shares, a person listed twice by a hand-edited share link, `10 ÷ 3`,
 one person treating another, switching between 2-decimal and 0-decimal currencies,

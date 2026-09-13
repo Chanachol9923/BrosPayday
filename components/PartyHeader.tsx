@@ -22,8 +22,8 @@ export function PartyHeader({
         value={title}
         onChange={(e) => onTitle(e.target.value)}
         readOnly={readOnly}
-        placeholder="Name this party"
-        aria-label="Party name"
+        placeholder="Name this event"
+        aria-label="Event name"
         autoComplete="off"
       />
       <label className="party-date">
@@ -34,7 +34,7 @@ export function PartyHeader({
           onChange={(e) => onDate(e.target.value)}
           readOnly={readOnly}
           disabled={readOnly}
-          aria-label="Date of the party"
+          aria-label="Date of the event"
         />
       </label>
     </section>

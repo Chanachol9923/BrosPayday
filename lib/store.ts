@@ -66,7 +66,7 @@ export function isWorthKeeping(p: Party | null | undefined): boolean {
 }
 
 export function partyLabel(p: Party): string {
-  return p.title.trim() || 'Untitled party';
+  return p.title.trim() || 'Untitled event';
 }
 
 /* ── store ───────────────────────────────────────────────────────── */
@@ -123,7 +123,7 @@ function migrateLegacy(): Store | null {
     store.history[pid] = [
       {
         id: uid(),
-        title: old.title || 'Imported party',
+        title: old.title || 'Imported event',
         date: todayISO(),
         currencyCode: old.currencyCode || 'THB',
         people: old.people,

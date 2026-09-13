@@ -57,7 +57,7 @@ export function CloudGate({
         {signedOut ? (
           <>
             <p className="gate-lede">
-              Sign in and your parties follow you to any phone or laptop, and the people in your
+              Sign in and your events follow you to any phone or laptop, and the people in your
               Group see them too.
             </p>
 
@@ -79,7 +79,7 @@ export function CloudGate({
           <>
             <p className="gate-lede">
               One more step — a Group is the people you split bills with. Everyone in it sees the same
-              parties.
+              events.
             </p>
 
             <div className="gate-block">
@@ -167,7 +167,7 @@ export function CloudGate({
   );
 }
 
-export function CloudLoading({ label = 'Loading your parties…' }: { label?: string }) {
+export function CloudLoading({ label = 'Loading your events…' }: { label?: string }) {
   return (
     <div className="gate">
       <div className="gate-card">

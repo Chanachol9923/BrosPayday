@@ -44,7 +44,7 @@ export function ProfileSheet({
     const parties = history[p.id]?.length ?? 0;
     const message =
       parties > 0
-        ? `Delete “${p.name}” and their ${parties} saved ${parties === 1 ? 'party' : 'parties'}? This cannot be undone.`
+        ? `Delete “${p.name}” and their ${parties} saved ${parties === 1 ? 'event' : 'events'}? This cannot be undone.`
         : `Delete “${p.name}”?`;
     if (window.confirm(message)) onDelete(p.id);
   };
@@ -68,7 +68,7 @@ export function ProfileSheet({
       )}
 
       <p className="hint" style={{ marginBottom: 13 }}>
-        Each person gets their own parties, history and presets on this device. No password —
+        Each person gets their own events, history and presets on this device. No password —
         it&rsquo;s just a way to keep separate tabs on the same phone or laptop.
       </p>
 

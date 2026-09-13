@@ -36,7 +36,7 @@ export function HistorySheet({
       {parties.length === 0 ? (
         <div className="empty">
           <strong>Nothing saved yet</strong>
-          Parties land here automatically when you next open the app — or use “Save &amp; start
+          Events land here automatically when you next open the app — or use “Save &amp; start
           new” once you&rsquo;re done with one.
         </div>
       ) : (
@@ -100,7 +100,7 @@ export function HistorySheet({
             <span style={{ flexShrink: 0, marginTop: 1 }}>
               <Clock size={14} />
             </span>
-            Opening one puts it back on the workbench — your current party is saved here first, so
+            Opening one puts it back on the workbench — your current event is saved here first, so
             nothing is lost either way.
           </p>
         </>

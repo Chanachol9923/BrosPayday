@@ -57,7 +57,7 @@ export function ShareSheet({
   };
 
   return (
-    <Sheet title="Share this party" onClose={onClose}>
+    <Sheet title="Share this event" onClose={onClose}>
       <div className="share-card">
         <div className="share-card-title">{partyLabel(party)}</div>
         <div className="share-card-meta num">
@@ -89,7 +89,7 @@ export function ShareSheet({
       {cloudLinks && (
         <>
           <div className="divider" />
-          <span className="label">A live link to this party</span>
+          <span className="label">A live link to this event</span>
           <p className="hint" style={{ marginBottom: 11 }}>
             Unlike the snapshot below, these stay in step with the party. Nobody needs to sign in.
           </p>
@@ -145,8 +145,8 @@ export function ShareSheet({
             </button>
           </div>
           <p className="hint" style={{ marginTop: 9 }}>
-            An edit link lets someone add what they bought. It reaches this party and nothing else —
-            not your other parties, not your Group.
+            An edit link lets someone add what they bought. It reaches this event and nothing else —
+            not your other events, not your Group.
           </p>
         </>
       )}
@@ -167,7 +167,7 @@ export function ShareSheet({
       />
 
       <p className="hint" style={{ marginTop: 9 }}>
-        This one packs the whole party into the link itself, so nothing is uploaded. Whoever opens
+        This one packs the whole event into the link itself, so nothing is uploaded. Whoever opens
         it gets their own copy frozen at this moment; what they change never comes back to you.
       </p>
     </Sheet>

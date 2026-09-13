@@ -22,9 +22,9 @@ Most split-the-bill tools hand you a number and expect you to trust it. This one
 
 There is no demo data and nothing seeded. What differs is where the data lives.
 
-**Signed in.** Sign in with Google, start or join a *Group*, and your parties follow
+**Signed in.** Sign in with Google, start or join a *Group*, and your events follow
 you to any device — and everyone in the Group sees them, updating live as people add
-what they bought. Photos go to private storage, cached locally so a party you have
+what they bought. Photos go to private storage, cached locally so an event you have
 opened still works with no signal.
 
 **On this device only.** The original behaviour, still offered plainly on the first
@@ -32,7 +32,7 @@ screen and still first-class: nothing uploaded, no account, no server. Anything 
 this way is offered up as a copy the first time you join a Group — the local copy is
 kept either way.
 
-**Holding a link.** You do not need an account to open a party someone shared. A view
+**Holding a link.** You do not need an account to open an event someone shared. A view
 link shows the split and the proof with nothing editable; an edit link lets you add
 what you bought, and it reaches that one party and nothing else.
 
@@ -56,7 +56,7 @@ apart: it survives a reload and dies with the tab. Whatever you were working on 
 filed into **History** automatically as the new session starts, so nothing is lost
 by simply closing the tab.
 
-History keeps the name you gave the party and the date it happened (both editable,
+History keeps the name you gave the event and the date it happened (both editable,
 and the date defaults to today). Search it by name, date or who was there. Opening
 an entry puts it back on the workbench and files the current one away — a swap, not
 a copy, so parties never quietly duplicate.
@@ -114,17 +114,17 @@ number back to you before you save it.
 
 Two different things share the same button.
 
-A **live link** exists only with cloud sync on. It stays in step with the party and
+A **live link** exists only with cloud sync on. It stays in step with the event and
 comes in two roles — view, or add-what-you-bought. Writes from an edit link go through
 a database function that pins every change to the party the token was issued for, so
 holding a link is not the same as being in the Group. Links can be revoked.
 
-A **snapshot link** needs no server at all: the whole party is packed into the URL
+A **snapshot link** needs no server at all: the whole event is packed into the URL
 fragment, which is never even sent to the host. Whoever opens it gets their own frozen
 copy. This is the only kind available in local-only mode.
 
 Press Share and you get a card showing exactly what is about to leave your phone —
-the party, the date, the people, the total, and your name as the sender. Then:
+the event, the date, the people, the total, and your name as the sender. Then:
 
 - **Share…** hands it to the OS share sheet (straight into LINE, WhatsApp, wherever)
   where the browser supports it;

@@ -233,7 +233,7 @@ export default function Page() {
 
     const groupName = cloud.activeGroup?.name ?? 'this Group';
     const ok = window.confirm(
-      `${worthMoving.length} ${worthMoving.length === 1 ? 'party is' : 'parties are'} saved on this device.
+      `${worthMoving.length} ${worthMoving.length === 1 ? 'event is' : 'events are'} saved on this device.
 
 ` +
         `Copy ${worthMoving.length === 1 ? 'it' : 'them'} into ${groupName}? The local copy is kept either way.`,
@@ -561,7 +561,7 @@ export default function Page() {
   };
 
   const discardParty = () => {
-    if (!window.confirm('Delete this party without saving it to history?')) return;
+    if (!window.confirm('Delete this event without saving it to history?')) return;
     void deletePhotos((party.photos ?? []).map((p) => p.id));
     setStore(setCurrent(store, profileId, newParty(party.currencyCode)));
     setSuggestions([]);
@@ -683,7 +683,7 @@ export default function Page() {
     setIncoming(null);
     setSuggestions([]);
     setView('setup');
-    setToast('Shared party opened');
+    setToast('Shared event opened');
   };
 
   const saveSharedOnly = () => {
@@ -713,11 +713,11 @@ export default function Page() {
     setStore(next);
   };
 
-  if (shareLoading) return <CloudLoading label="Opening the shared party…" />;
+  if (shareLoading) return <CloudLoading label="Opening the shared event…" />;
 
   if (usingCloud && cloud.status !== 'ready') {
     if (cloud.status === 'loading') {
-      return <CloudLoading label={cloud.user ? 'Loading your parties…' : 'Just a moment…'} />;
+      return <CloudLoading label={cloud.user ? 'Loading your events…' : 'Just a moment…'} />;
     }
     return (
       <CloudGate
@@ -807,7 +807,7 @@ export default function Page() {
                   </span>
                   <span className="sep" />
                   <button type="button" onClick={openShare}>
-                    <Share /> Share this party
+                    <Share /> Share this event
                   </button>
                   <button
                     type="button"
@@ -829,10 +829,10 @@ export default function Page() {
                   </button>
                   <span className="sep" />
                   <button type="button" onClick={startNewParty}>
-                    <Plus /> Save &amp; start new party
+                    <Plus /> Save &amp; start new event
                   </button>
                   <button type="button" className="danger" onClick={discardParty}>
-                    <Trash /> Delete this party
+                    <Trash /> Delete this event
                   </button>
                 </span>
               </>

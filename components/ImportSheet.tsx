@@ -24,7 +24,7 @@ export function ImportSheet({
 
   return (
     <Sheet
-      title="Someone shared a party"
+      title="Someone shared an event"
       onClose={onClose}
       footer={
         <>

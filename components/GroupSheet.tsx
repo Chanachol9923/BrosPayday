@@ -59,7 +59,7 @@ export function GroupSheet({
     <Sheet title="Your Group" onClose={onClose}>
       <p className="hint" style={{ marginBottom: 13 }}>
         Signed in as <b style={{ color: 'var(--text)' }}>{userName}</b>. A Group is the people you
-        split with — everyone in it sees the same parties on any device.
+        split with — everyone in it sees the same events on any device.
       </p>
 
       {active && (

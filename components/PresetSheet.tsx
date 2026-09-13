@@ -44,7 +44,7 @@ export function PresetSheet({
       {presets.length === 0 ? (
         <div className="empty">
           <strong>No presets yet</strong>
-          Add the people for a party, then save them below as a preset you can reuse.
+          Add the people for an event, then save them below as a preset you can reuse.
         </div>
       ) : (
         <div className="row-list">
@@ -91,7 +91,7 @@ export function PresetSheet({
       <div className="divider" />
 
       <label className="label" htmlFor="preset-name">
-        Save this party as a preset
+        Save this event as a preset
       </label>
 
       {canSave ? (

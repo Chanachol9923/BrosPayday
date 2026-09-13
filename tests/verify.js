@@ -11,7 +11,9 @@ const {
   computeSplit, allocate, repaymentKey, repaymentView, shareOut,
 } = require('../.verify/split.js');
 const { parseAmount, formatMoney, rescaleAmount } = require('../.verify/format.js');
-const { encodeParty, decodeParty } = require('../.verify/share.js');
+const {
+  encodeParty, decodeParty, eventCodeUrl, withEditCode,
+} = require('../.verify/share.js');
 const {
   applyPreset, archiveCurrent, deleteFromHistory, emptyStore, newParty,
   presetFromParty, referencedPhotoIds, reopenFromHistory,
@@ -463,6 +465,50 @@ section('share links — round trip');
       ? ok('a link only carries personal amounts when there are some to carry')
       : fail(`an ordinary party packed ${JSON.stringify(rows.map((r) => r.length))}`);
   }
+}
+
+
+section('event codes — one link, described twice');
+{
+  const origin = 'https://brospayday.vercel.app';
+
+  eventCodeUrl(origin, 'ABCD1234') === 'https://brospayday.vercel.app/?s=ABCD1234'
+    ? ok('a code becomes the address you actually send someone')
+    : fail(`eventCodeUrl produced ${eventCodeUrl(origin, 'ABCD1234')}`);
+
+  // The share sheet mints the edit code and lists the codes at the same time. If
+  // the listing lands first, the button at the top would be handing out an invite
+  // while the card below said there was no code yet — two views of one thing,
+  // disagreeing.
+  const raced = withEditCode([{ token: 'VIEW0001', role: 'view' }], 'EDIT0001');
+  const edit = raced.find((l) => l.role === 'edit');
+  raced.length === 2 && edit && edit.token === 'EDIT0001'
+    ? ok('a code that was made but not yet listed still shows up on the card')
+    : fail(`reconciling produced ${JSON.stringify(raced)}`);
+
+  // and the two are then literally the same link
+  eventCodeUrl(origin, edit.token) === eventCodeUrl(origin, 'EDIT0001')
+    ? ok('the invite button and the edit card resolve to the same address')
+    : fail('the invite button and the edit card disagree');
+
+  const listed = [
+    { token: 'VIEW0001', role: 'view' },
+    { token: 'EDIT0001', role: 'edit' },
+  ];
+  JSON.stringify(withEditCode(listed, 'EDIT0001')) === JSON.stringify(listed)
+    ? ok('a code already listed is not added a second time')
+    : fail('reconciling duplicated the edit code');
+
+  // the server can disagree with what we just minted; the server wins the listing
+  const different = withEditCode([{ token: 'OTHER999', role: 'edit' }], 'EDIT0001');
+  different.length === 1 && different[0].token === 'OTHER999'
+    ? ok('what the server lists is left alone rather than second-guessed')
+    : fail(`reconciling overrode the listing: ${JSON.stringify(different)}`);
+
+  JSON.stringify(withEditCode(listed, null)) === JSON.stringify(listed) &&
+  withEditCode([], null).length === 0
+    ? ok('with no edit code to fold in, the listing passes through untouched')
+    : fail('reconciling invented a code out of nothing');
 }
 
 section('history and presets');

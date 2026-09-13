@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { Party } from '@/lib/types';
 import { formatMoney } from '@/lib/format';
 import { partyLabel, relativeDate } from '@/lib/store';
+import { eventCodeUrl } from '@/lib/share';
 import { Sheet } from './Sheet';
 import type { ShareLink } from '@/lib/cloud/api';
 import { Copy, Link, Qr, Share, Trash } from './Icons';
@@ -50,6 +51,12 @@ export function ShareSheet({
   const primaryUrl = inviteUrl ?? url;
   const invites = inviteUrl !== null;
 
+  /** Tapping the field itself copies: nobody wants to drag-select a URL on a phone. */
+  const copySnapshot = () => {
+    urlRef.current?.select();
+    onCopyText(url, 'Snapshot link copied');
+  };
+
   const nativeShare = async () => {
     try {
       await navigator.share({
@@ -83,7 +90,7 @@ export function ShareSheet({
         {canNativeShare && (
           <button type="button" className="btn primary block" onClick={nativeShare}>
             <Share />
-            Share…
+            {invites ? 'Share Invite Link (Can Edit)' : 'Share…'}
           </button>
         )}
         <button
@@ -92,7 +99,7 @@ export function ShareSheet({
           onClick={() => onCopyText(primaryUrl, invites ? 'Invite link copied' : 'Link copied')}
         >
           <Link />
-          Copy link
+          {invites ? 'Copy Invite Link (Can Edit)' : 'Copy link'}
         </button>
         <button type="button" className="btn block" onClick={onCopySummary}>
           <Copy />
@@ -102,9 +109,10 @@ export function ShareSheet({
 
       {invites && (
         <p className="hint" style={{ marginTop: 9 }}>
-          Whoever opens it can add what they bought, to this event only — they sign in first, so
-          every change has a name on it. Hand out the view code below instead if they should just
-          look; that one needs no account at all.
+          This is the edit code below, as a link — the same one, so revoking it there kills this
+          too. Whoever opens it can add what they bought, to this event only, and signs in first so
+          every change has a name on it. Send the view link instead if they should just look; that
+          one needs no account at all.
         </p>
       )}
 
@@ -153,8 +161,11 @@ export function ShareSheet({
                           className="btn sm"
                           onClick={() =>
                             onCopyText(
-                              `${typeof window === 'undefined' ? '' : window.location.origin}/?s=${existing.token}`,
-                              'Link copied',
+                              eventCodeUrl(
+                                typeof window === 'undefined' ? '' : window.location.origin,
+                                existing.token,
+                              ),
+                              role === 'edit' ? 'Invite link copied' : 'View link copied',
                             )
                           }
                         >
@@ -202,15 +213,27 @@ export function ShareSheet({
       <label className="label" htmlFor="share-url">
         A snapshot link
       </label>
-      <input
-        id="share-url"
-        ref={urlRef}
-        className="field url-field"
-        value={url}
-        readOnly
-        onFocus={(e) => e.currentTarget.select()}
-        spellCheck={false}
-      />
+      <div className="url-row">
+        <input
+          id="share-url"
+          ref={urlRef}
+          className="field url-field"
+          value={url}
+          readOnly
+          onFocus={(e) => e.currentTarget.select()}
+          onClick={copySnapshot}
+          title="Tap to copy"
+          spellCheck={false}
+        />
+        <button
+          type="button"
+          className="icon-btn"
+          onClick={copySnapshot}
+          aria-label="Copy the snapshot link"
+        >
+          <Copy size={16} />
+        </button>
+      </div>
 
       <p className="hint" style={{ marginTop: 9 }}>
         This one packs the whole event into the link itself, so nothing is uploaded. Whoever opens

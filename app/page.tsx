@@ -41,7 +41,7 @@ import {
   updateCurrent,
 } from '@/lib/store';
 import type { SharedParty } from '@/lib/share';
-import { buildShareUrl, readShareHash } from '@/lib/share';
+import { buildShareUrl, eventCodeUrl, readShareHash, withEditCode } from '@/lib/share';
 import {
   QR_ENCODE,
   deletePhoto,
@@ -769,13 +769,26 @@ export default function Page() {
     // The sheet leads with "invite someone to join", so the edit code has to
     // exist by the time it is shown. It is revocable, and asking again returns
     // the same one, so this does not multiply codes.
-    void eventShareCode(party.id, 'edit')
-      .then((token) => setInviteUrl(`${window.location.origin}/?s=${token}`))
-      .catch(() => setInviteUrl(null));
+    //
+    // Listing comes after, not alongside: run in parallel and a first-time share
+    // can list the codes before this one has been made, leaving the button at the
+    // top handing out an invite while the card below says there is no code yet.
+    // They are the same link and must never look like two different things.
+    void (async () => {
+      let edit: string | null = null;
+      try {
+        edit = await eventShareCode(party.id, 'edit');
+        setInviteUrl(eventCodeUrl(window.location.origin, edit));
+      } catch {
+        setInviteUrl(null);
+      }
 
-    void listShareLinks(party.id)
-      .then(setCloudLinks)
-      .catch(() => setCloudLinks([]));
+      try {
+        setCloudLinks(withEditCode(await listShareLinks(party.id), edit));
+      } catch {
+        setCloudLinks(withEditCode([], edit));
+      }
+    })();
   };
 
   const addShareLink = async (role: 'view' | 'edit') => {

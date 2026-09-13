@@ -1361,11 +1361,17 @@ input[readonly]::placeholder { color: var(--text-faint); }
 
 .share-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
 
+.url-row { display: flex; align-items: center; gap: 8px; }
+.url-row .field { flex: 1; min-width: 0; }
+
 .url-field {
   font-size: 12.5px;
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   color: var(--text-dim);
 }
+/* Read-only, but not inert: tapping it copies, so it has to invite the tap. */
+.url-field[readonly] { cursor: pointer; }
+.url-field[readonly]:hover { border-color: var(--accent); }
 
 @media (min-width: 900px) {
   .party-title { font-size: 24px; }

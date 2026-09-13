@@ -150,3 +150,33 @@ export function readShareHash(hash: string): SharedParty | null {
   if (hash.startsWith('#s=')) return decodeParty(hash.slice(3));
   return null;
 }
+
+/* ── live event codes ──────────────────────────────────────────────────────
+ *
+ * Not a snapshot in a URL like the above, but a short code the server hands out
+ * for one event. Both the button at the top of the share sheet and the card
+ * further down are built from these, and they have to be the same link — the two
+ * are described to people as one thing, and revoking one revokes the other.
+ */
+
+export type EventCode = { token: string; role: 'view' | 'edit' };
+
+/** The address you send someone, for a code of either kind. */
+export function eventCodeUrl(origin: string, token: string): string {
+  return `${origin}/?s=${token}`;
+}
+
+/**
+ * The codes to show, given what the server listed and the edit code that was
+ * just made sure of.
+ *
+ * Opening the sheet does two things at once: mints the edit code if it is
+ * missing, and lists what exists. On a first share the listing can come back
+ * before the minting lands, which would leave the invite button working while
+ * the card below claimed there was no code yet. This folds the one we know about
+ * back in, without ever duplicating a role.
+ */
+export function withEditCode(listed: EventCode[], editToken: string | null): EventCode[] {
+  if (!editToken || listed.some((l) => l.role === 'edit')) return listed;
+  return [...listed, { token: editToken, role: 'edit' }];
+}

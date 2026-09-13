@@ -5,7 +5,7 @@ import type { Party, Profile } from '@/lib/types';
 import { hueForIndex } from '@/lib/colors';
 import { Avatar } from './Avatar';
 import { Sheet } from './Sheet';
-import { Check, Plus, Swap, Trash } from './Icons';
+import { Check, Cloud, Plus, Swap, Trash } from './Icons';
 
 export function ProfileSheet({
   profiles,
@@ -16,6 +16,7 @@ export function ProfileSheet({
   onAdd,
   onRename,
   onDelete,
+  onSignIn,
   onClose,
 }: {
   profiles: Profile[];
@@ -26,6 +27,8 @@ export function ProfileSheet({
   onAdd: (name: string) => void;
   onRename: (id: string, name: string) => void;
   onDelete: (id: string) => void;
+  /** Absent when there is no cloud to sign in to, so the offer is never empty. */
+  onSignIn?: () => void;
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState('');
@@ -48,6 +51,22 @@ export function ProfileSheet({
 
   return (
     <Sheet title="Who's using this?" onClose={onClose}>
+      {onSignIn && (
+        <>
+          <div className="signin-offer">
+            <span className="signin-offer-text">
+              <b>Only on this device.</b> Sign in and your parties follow you to any phone or
+              laptop, and your crew sees them too. Nothing here is lost — it comes with you.
+            </span>
+            <button type="button" className="btn primary block" onClick={onSignIn}>
+              <Cloud size={16} />
+              Sign in to sync
+            </button>
+          </div>
+          <div className="divider" />
+        </>
+      )}
+
       <p className="hint" style={{ marginBottom: 13 }}>
         Each person gets their own parties, history and presets on this device. No password —
         it&rsquo;s just a way to keep separate tabs on the same phone or laptop.

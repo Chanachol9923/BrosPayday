@@ -175,3 +175,10 @@ export const Wallet = ({ size = 18 }: P) => (
     <path d="M16 13.5h2.5" />
   </svg>
 );
+
+export const Cloud = ({ size = 18 }: P) => (
+  <svg {...base(size)}>
+    <path d="M6.5 19A4.5 4.5 0 0 1 6 10.06a6 6 0 0 1 11.6 1.44A3.75 3.75 0 0 1 17 19Z" />
+    <path d="M12 16v-6M9.5 12.5 12 10l2.5 2.5" />
+  </svg>
+);

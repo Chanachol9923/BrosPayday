@@ -695,6 +695,14 @@ export default function Page() {
 
   // Before there is anywhere to put the data, the app is one screen: sign in,
   // then pick a crew. Choosing to stay local skips all of it for good.
+  /** The way back out of local-only. The device's data stays put and is offered up after. */
+  const leaveLocalMode = () => {
+    localStorage.removeItem(MODE_KEY);
+    setLocalOnly(false);
+    setModal(null);
+    void cloud.signIn();
+  };
+
   const chooseLocal = () => {
     localStorage.setItem(MODE_KEY, 'local');
     setLocalOnly(true);
@@ -1019,6 +1027,7 @@ export default function Page() {
           onAdd={doAddProfile}
           onRename={(id, name) => setStore((prev) => renameProfile(prev, id, name))}
           onDelete={(id) => setStore((prev) => deleteProfile(prev, id))}
+          onSignIn={cloud.configured ? leaveLocalMode : undefined}
           onClose={() => setModal(null)}
         />
       )}

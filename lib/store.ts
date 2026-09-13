@@ -48,7 +48,7 @@ export function relativeDate(iso: string): string {
 export function newParty(currencyCode = 'THB'): Party {
   const now = Date.now();
   return {
-    id: uid('party'),
+    id: uid(),
     title: '',
     date: todayISO(),
     currencyCode,
@@ -72,7 +72,7 @@ export function partyLabel(p: Party): string {
 /* ── store ───────────────────────────────────────────────────────── */
 
 export function emptyStore(): Store {
-  const profile: Profile = { id: uid('u'), name: 'Me', createdAt: Date.now() };
+  const profile: Profile = { id: uid(), name: 'Me', createdAt: Date.now() };
   return {
     version: 2,
     profiles: [profile],
@@ -122,7 +122,7 @@ function migrateLegacy(): Store | null {
 
     store.history[pid] = [
       {
-        id: uid('party'),
+        id: uid(),
         title: old.title || 'Imported party',
         date: todayISO(),
         currencyCode: old.currencyCode || 'THB',
@@ -270,7 +270,7 @@ export function saveToHistory(store: Store, profileId: string, party: Party): St
 /* ── profiles ────────────────────────────────────────────────────── */
 
 export function addProfile(store: Store, name: string): Store {
-  const profile: Profile = { id: uid('u'), name: name.trim() || 'New user', createdAt: Date.now() };
+  const profile: Profile = { id: uid(), name: name.trim() || 'New user', createdAt: Date.now() };
   const fresh = newParty(store.current[store.activeProfileId]?.currencyCode ?? 'THB');
   markSession(fresh.id, profile.id);
 
@@ -347,7 +347,7 @@ export function presetFromParty(party: Party, name: string): Preset {
   }
 
   return {
-    id: uid('preset'),
+    id: uid(),
     name: name.trim() || 'Untitled preset',
     title: party.title.trim(),
     currencyCode: party.currencyCode,
@@ -397,7 +397,7 @@ export function applyPreset(party: Party, preset: Preset): Party {
     const key = name.trim().toLowerCase();
     if (key && !taken.has(key)) {
       taken.add(key);
-      added.push({ id: uid('p'), name: name.trim() });
+      added.push({ id: uid(), name: name.trim() });
     }
   }
 

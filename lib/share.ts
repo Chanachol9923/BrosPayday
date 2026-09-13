@@ -71,7 +71,7 @@ export function decodeParty(code: string): SharedParty | null {
     const packed = JSON.parse(b64decode(code)) as Packed;
     if (!packed || !Array.isArray(packed.p) || !Array.isArray(packed.i)) return null;
 
-    const people: Person[] = packed.p.map((name) => ({ id: uid('p'), name: String(name ?? '') }));
+    const people: Person[] = packed.p.map((name) => ({ id: uid(), name: String(name ?? '') }));
 
     const items: Item[] = packed.i.map((row) => {
       const [name, amount, payerIdx, bearerIdxs, weightList] = row ?? ([] as unknown as PackedItem);
@@ -94,7 +94,7 @@ export function decodeParty(code: string): SharedParty | null {
       });
 
       return {
-        id: uid('i'),
+        id: uid(),
         name: String(name ?? ''),
         amount: Number.isFinite(amount) ? Math.round(amount) : 0,
         payerId: people[payerIdx]?.id ?? null,

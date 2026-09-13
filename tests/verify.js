@@ -16,6 +16,7 @@ const {
   setPayee, payeeFor, hasPaymentDetails, addPhotoMeta, updateCurrent,
 } = require('../.verify/store.js');
 const { referenceParty } = require('./fixture.js');
+const { diffParty, diffGroup } = require('../.verify/cloud/diff.js');
 const {
   buildPromptPayPayload, crc16, parsePromptPayId, parseTlv, verifyPromptPayPayload,
 } = require('../.verify/promptpay.js');
@@ -534,6 +535,80 @@ section('payment details and photo bookkeeping');
   referencedPhotoIds(dropped).has('ph_1')
     ? fail('a removed photo is still considered in use')
     : ok('a removed photo stops being referenced, so its blob can be swept');
+}
+
+section('cloud sync — turning edits into row writes');
+{
+  const base = referenceParty();
+  const slice = (party, history = []) => ({ current: party, history, presets: [], payees: {} });
+  const tables = (ops) => ops.map((o) => `${o.table}:${o.op}`);
+
+  diffParty(base, base).length === 0
+    ? ok('an untouched party produces no writes at all')
+    : fail(`idle diff emitted ${diffParty(base, base).length} ops`);
+
+  // renaming one expense must not disturb its shares or anybody else's rows
+  const renamed = { ...base, items: base.items.map((i) => (i.id === 'i_pork' ? { ...i, name: 'Pork belly' } : i)) };
+  const renameOps = diffParty(base, renamed);
+  renameOps.length === 1 && renameOps[0].table === 'expenses' && renameOps[0].id === 'i_pork'
+    ? ok('renaming one expense writes exactly one row')
+    : fail(`rename emitted ${JSON.stringify(tables(renameOps))}`);
+
+  // changing who shares touches the share rows, not the expense row
+  const reshared = {
+    ...base,
+    items: base.items.map((i) => (i.id === 'i_pork' ? { ...i, bearerIds: ['p_q', 'p_f', 'p_b'] } : i)),
+  };
+  const shareOps = diffParty(base, reshared);
+  shareOps.length === 1 && shareOps[0].table === 'expense_shares' && shareOps[0].shares.length === 3
+    ? ok('changing who shares rewrites only the share rows')
+    : fail(`reshare emitted ${JSON.stringify(tables(shareOps))}`);
+
+  // THE claim: two people editing different expenses must not touch the same rows
+  const mEdits = { ...base, items: base.items.map((i) => (i.id === 'i_booze' ? { ...i, amount: 70000 } : i)) };
+  const fEdits = { ...base, items: base.items.map((i) => (i.id === 'i_pork' ? { ...i, amount: 45000 } : i)) };
+  const mRows = new Set(diffParty(base, mEdits).map((o) => `${o.table}:${o.id ?? o.expenseId ?? o.key}`));
+  const fRows = new Set(diffParty(base, fEdits).map((o) => `${o.table}:${o.id ?? o.expenseId ?? o.key}`));
+  const overlap = [...mRows].filter((r) => fRows.has(r));
+
+  mRows.size > 0 && fRows.size > 0 && overlap.length === 0
+    ? ok('two people editing different expenses write to disjoint rows — no silent overwrite')
+    : fail(`edits collided on ${overlap.join(', ')}`);
+
+  // adding a person, and removing one
+  const added = { ...base, people: [...base.people, { id: 'p_new', name: 'Z' }] };
+  const addOps = diffParty(base, added);
+  addOps.length === 1 && addOps[0].table === 'party_people' && addOps[0].name === 'Z'
+    ? ok('adding a member writes one row')
+    : fail(`add member emitted ${JSON.stringify(tables(addOps))}`);
+
+  const removed = { ...base, people: base.people.filter((p) => p.id !== 'p_y') };
+  const removeOps = diffParty(base, removed);
+  removeOps.some((o) => o.table === 'party_people' && o.op === 'delete' && o.id === 'p_y')
+    ? ok('removing a member deletes their row')
+    : fail('removing a member did not delete the row');
+
+  // moving a party to history is a flag flip, not a delete and re-insert
+  const archiveOps = diffGroup(slice(base), slice(null, [base]));
+  archiveOps.filter((o) => o.table === 'parties').every((o) => o.op === 'upsert') &&
+  archiveOps.some((o) => o.table === 'parties' && o.op === 'upsert' && o.id === base.id)
+    ? ok('archiving a party updates it in place rather than deleting it')
+    : fail(`archive emitted ${JSON.stringify(tables(archiveOps))}`);
+
+  // deleting a party for real does delete it
+  const deleteOps = diffGroup(slice(base), slice(null, []));
+  deleteOps.length === 1 && deleteOps[0].table === 'parties' && deleteOps[0].op === 'delete'
+    ? ok('deleting a party emits a single delete')
+    : fail(`delete emitted ${JSON.stringify(tables(deleteOps))}`);
+
+  // a brand new party sends everything it needs in one go
+  const fresh = diffParty(null, base);
+  const kinds = new Set(fresh.map((o) => o.table));
+  kinds.has('parties') && kinds.has('party_people') && kinds.has('expenses') && kinds.has('expense_shares') &&
+  fresh.filter((o) => o.table === 'party_people').length === base.people.length &&
+  fresh.filter((o) => o.table === 'expenses').length === base.items.length
+    ? ok('a new party uploads its people and expenses completely')
+    : fail(`new party emitted ${JSON.stringify(tables(fresh))}`);
 }
 
 console.log(fails === 0 ? '\nALL GREEN\n' : `\n${fails} FAILURE(S)\n`);

@@ -167,7 +167,7 @@ export default function Page() {
   const addPeople = (names: string[]) =>
     updateParty((p) => ({
       ...p,
-      people: [...p.people, ...names.map((name) => ({ id: uid('p'), name }))],
+      people: [...p.people, ...names.map((name) => ({ id: uid(), name }))],
     }));
 
   const renamePerson = (id: string, name: string) =>
@@ -195,7 +195,7 @@ export default function Page() {
   const addPhotos = async (files: File[]) => {
     setPhotoBusy((n) => n + files.length);
     for (const file of files) {
-      const id = uid('ph');
+      const id = uid();
       try {
         const saved = await savePhoto(file, id);
         updateParty((p) =>
@@ -242,7 +242,7 @@ export default function Page() {
     if (!person) return;
 
     const previous = lookupPayee(store, profileId, person.name)?.qrPhotoId ?? null;
-    const id = uid('qr');
+    const id = uid();
 
     setPhotoBusy((n) => n + 1);
     try {
@@ -302,7 +302,7 @@ export default function Page() {
     setSheet({
       isNew: true,
       draft: {
-        id: uid('i'),
+        id: uid(),
         name: presetName ?? '',
         amount: 0,
         payerId,

@@ -7,9 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "verify": "tsc lib/split.ts lib/format.ts lib/types.ts lib/share.ts lib/store.ts lib/promptpay.ts --outDir .verify --rootDir lib --module commonjs --target es2020 --skipLibCheck --esModuleInterop && node tests/verify.js"
+    "verify": "tsc lib/split.ts lib/format.ts lib/types.ts lib/share.ts lib/store.ts lib/promptpay.ts lib/cloud/diff.ts --outDir .verify --rootDir lib --module commonjs --target es2020 --skipLibCheck --esModuleInterop && node tests/verify.js"
   },
   "dependencies": {
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.116.0",
     "next": "^16.3.5",
     "qrcode-generator": "^2.0.4",
     "react": "19.1.1",

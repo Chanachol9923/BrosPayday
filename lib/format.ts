@@ -1,11 +1,17 @@
 import { currencyOf } from './types';
 
-export function uid(prefix = 'x'): string {
-  const rand =
-    typeof crypto !== 'undefined' && 'randomUUID' in crypto
-      ? crypto.randomUUID().slice(0, 8)
-      : Math.random().toString(36).slice(2, 10);
-  return `${prefix}_${rand}`;
+/**
+ * Ids are UUIDs even in local-only mode, so a device's data can be pushed to the
+ * database as-is when cloud sync is turned on rather than being renumbered.
+ */
+export function uid(): string {
+  if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) return crypto.randomUUID();
+
+  // Only reached on ancient browsers; good enough to avoid a collision locally.
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    return (c === 'x' ? r : (r & 0x3) | 0x8).toString(16);
+  });
 }
 
 /** "1,600.50" -> 160050 minor units. Returns null when the text isn't a usable number. */

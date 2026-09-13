@@ -16,8 +16,18 @@ const STORE = 'photos';
 
 const MAX_EDGE = 1600;
 const THUMB_EDGE = 240;
-const QUALITY = 0.82;
 const THUMB_QUALITY = 0.7;
+
+/**
+ * Receipts are read, not admired. What keeps small print legible is resolution,
+ * not JPEG quality, so the long edge is held at 1600px and quality is spent down
+ * instead until the file fits a budget — with a floor, because below about 0.6
+ * the ringing around thin Thai glyphs starts to eat them.
+ */
+const TARGET_BYTES = 180 * 1024;
+const START_QUALITY = 0.82;
+const MIN_QUALITY = 0.62;
+const QUALITY_STEP = 0.08;
 
 export type StoredPhoto = {
   id: string;
@@ -90,6 +100,23 @@ async function encode(bitmap: ImageBitmap, maxEdge: number, quality: number): Pr
   return blob;
 }
 
+/** Step the quality down until the file fits, never past the legibility floor. */
+async function encodeWithinBudget(
+  bitmap: ImageBitmap,
+  maxEdge: number,
+  targetBytes: number,
+): Promise<Blob> {
+  let quality = START_QUALITY;
+  let blob = await encode(bitmap, maxEdge, quality);
+
+  while (blob.size > targetBytes && quality > MIN_QUALITY) {
+    quality = Math.max(MIN_QUALITY, Number((quality - QUALITY_STEP).toFixed(2)));
+    blob = await encode(bitmap, maxEdge, quality);
+  }
+
+  return blob;
+}
+
 async function toBitmap(file: File): Promise<ImageBitmap> {
   // from-image applies the EXIF rotation phones bake in, so portrait shots
   // do not come back on their side.
@@ -105,7 +132,10 @@ export type SavedPhoto = { id: string; w: number; h: number; bytes: number; adde
 export type SaveOptions = {
   /** Longest edge of the stored copy. */
   maxEdge?: number;
+  /** Fixed quality. Set this to opt out of the size budget entirely. */
   quality?: number;
+  /** Size to aim for, in bytes. Ignored when `quality` is given. */
+  targetBytes?: number;
 };
 
 /**
@@ -117,12 +147,13 @@ export const QR_ENCODE: SaveOptions = { maxEdge: 1200, quality: 0.95 };
 
 export async function savePhoto(file: File, id: string, opts: SaveOptions = {}): Promise<SavedPhoto> {
   const maxEdge = opts.maxEdge ?? MAX_EDGE;
-  const quality = opts.quality ?? QUALITY;
 
   const bitmap = await toBitmap(file);
   try {
     const [full, thumb] = await Promise.all([
-      encode(bitmap, maxEdge, quality),
+      opts.quality !== undefined
+        ? encode(bitmap, maxEdge, opts.quality)
+        : encodeWithinBudget(bitmap, maxEdge, opts.targetBytes ?? TARGET_BYTES),
       encode(bitmap, THUMB_EDGE, THUMB_QUALITY),
     ]);
     const { w, h } = scaleTo(bitmap.width, bitmap.height, maxEdge);

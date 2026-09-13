@@ -18,11 +18,35 @@ Most split-the-bill tools hand you a number and expect you to trust it. This one
 4. **Settling up** — which transfers clear it, plus a replay proving every balance lands on zero.
 5. **Automatic checks** — four invariants re-run on every change.
 
-## Nothing to start with
+## Three ways to use it
 
-There is no demo data, no seeded example and no account. The first time anyone opens
-BrosPayday they get an empty sheet, and everything they add stays on their own device.
-Sharing happens one way only: you send someone a link.
+There is no demo data and nothing seeded. What differs is where the data lives.
+
+**Signed in.** Sign in with Google, start or join a *crew*, and your parties follow
+you to any device — and everyone in the crew sees them, updating live as people add
+what they bought. Photos go to private storage, cached locally so a party you have
+opened still works with no signal.
+
+**On this device only.** The original behaviour, still offered plainly on the first
+screen and still first-class: nothing uploaded, no account, no server. Anything saved
+this way is offered up as a copy the first time you join a crew — the local copy is
+kept either way.
+
+**Holding a link.** You do not need an account to open a party someone shared. A view
+link shows the split and the proof with nothing editable; an edit link lets you add
+what you bought, and it reaches that one party and nothing else.
+
+Turning cloud sync on is a five-minute setup, documented in [SETUP.md](SETUP.md). With
+no keys configured the app simply runs local-only.
+
+## Who can see what
+
+Every access question reduces to one: *are you in the crew that owns this?* That is
+enforced in Postgres by row-level security, not in the client, so a key in a browser
+bundle grants nothing on its own. `supabase/tests/rls.sql` proves it by impersonating
+two users and checking what each can actually reach — a stranger sees no parties, no
+expenses, no people and not even the crew's name, and is refused on write. Run it with
+`npm run verify:rls`; it rolls back and leaves no trace.
 
 ## How a session works
 
@@ -87,6 +111,17 @@ scan. The digits still come from whatever was typed, which is why the app reads 
 number back to you before you save it.
 
 ## Sharing
+
+Two different things share the same button.
+
+A **live link** exists only with cloud sync on. It stays in step with the party and
+comes in two roles — view, or add-what-you-bought. Writes from an edit link go through
+a database function that pins every change to the party the token was issued for, so
+holding a link is not the same as being in the crew. Links can be revoked.
+
+A **snapshot link** needs no server at all: the whole party is packed into the URL
+fragment, which is never even sent to the host. Whoever opens it gets their own frozen
+copy. This is the only kind available in local-only mode.
 
 Press Share and you get a card showing exactly what is about to leave your phone —
 the party, the date, the people, the total, and your name as the sender. Then:
@@ -198,6 +233,12 @@ components/
   ShareSheet        share card, native share, link, summary
   ImportSheet       preview of an incoming shared party
 lib/
+  cloud/            everything that talks to Postgres
+    diff.ts         a changed state reduced to row-level writes
+    api.ts          crews, loading, applying, realtime, share links
+    useCloud.ts     session, crew selection, push and pull
+    photos.ts       the private storage bucket
+  supabase/         the browser client, null when unconfigured
   split.ts          allocate() + computeSplit() + settle()  ← all the maths
   promptpay.ts      Thai EMVCo QR payloads + CRC-16
   photos.ts         IndexedDB blob store, resizing, orphan sweep

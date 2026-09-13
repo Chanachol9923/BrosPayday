@@ -1,3 +1,7 @@
+> **This project is already set up.** The steps below are the record of how, and
+> what to repeat if you ever move to a different Supabase project. Both migrations
+> are applied, Google sign-in is live, and the keys are set locally and on Vercel.
+
 # Turning on cloud sync
 
 BrosPayday works with no server at all — everything sits in the browser. That is

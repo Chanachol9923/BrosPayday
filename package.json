@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "verify": "tsc lib/split.ts lib/format.ts lib/types.ts lib/share.ts lib/store.ts lib/promptpay.ts lib/cloud/diff.ts --outDir .verify --rootDir lib --module commonjs --target es2020 --skipLibCheck --esModuleInterop && node tests/verify.js"
+    "verify": "tsc lib/split.ts lib/format.ts lib/types.ts lib/share.ts lib/store.ts lib/promptpay.ts lib/cloud/diff.ts --outDir .verify --rootDir lib --module commonjs --target es2020 --skipLibCheck --esModuleInterop && node tests/verify.js",
+    "verify:rls": "node scripts/run-sql.js supabase/tests/rls.sql"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
@@ -21,6 +22,7 @@
     "@types/node": "^22.15.0",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
+    "pg": "^8.23.0",
     "supabase": "^2.117.0",
     "typescript": "^5.8.3"
   }

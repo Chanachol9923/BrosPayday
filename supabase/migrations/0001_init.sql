@@ -25,23 +25,11 @@ create table if not exists public.profiles (
 
 alter table public.profiles enable row level security;
 
--- Anyone you share a group with can see your name; that is how the member list
--- and "who paid" read as people rather than as uuids.
-create policy "profiles are visible to people you share a group with"
-  on public.profiles for select
-  using (
-    id = auth.uid()
-    or exists (
-      select 1
-      from public.group_members mine
-      join public.group_members theirs on theirs.group_id = mine.group_id
-      where mine.user_id = auth.uid() and theirs.user_id = profiles.id
-    )
-  );
-
+drop policy if exists "you may edit only your own profile" on public.profiles;
 create policy "you may edit only your own profile"
   on public.profiles for update using (id = auth.uid()) with check (id = auth.uid());
 
+drop policy if exists "you may create your own profile" on public.profiles;
 create policy "you may create your own profile"
   on public.profiles for insert with check (id = auth.uid());
 
@@ -105,21 +93,44 @@ as $$
   );
 $$;
 
+-- Defined here rather than beside the table: it reads group_members, which has
+-- to exist first.
+-- Anyone you share a group with can see your name; that is how the member list
+-- and "who paid" read as people rather than as uuids.
+drop policy if exists "profiles are visible to people you share a group with" on public.profiles;
+create policy "profiles are visible to people you share a group with"
+  on public.profiles for select
+  using (
+    id = auth.uid()
+    or exists (
+      select 1
+      from public.group_members mine
+      join public.group_members theirs on theirs.group_id = mine.group_id
+      where mine.user_id = auth.uid() and theirs.user_id = profiles.id
+    )
+  );
+
+drop policy if exists "you see groups you belong to" on public.groups;
 create policy "you see groups you belong to"
   on public.groups for select using (public.is_group_member(id));
 
+drop policy if exists "anyone signed in may start a group" on public.groups;
 create policy "anyone signed in may start a group"
   on public.groups for insert with check (created_by = auth.uid());
 
+drop policy if exists "members may rename their group" on public.groups;
 create policy "members may rename their group"
   on public.groups for update using (public.is_group_member(id)) with check (public.is_group_member(id));
 
+drop policy if exists "you see the membership of your own groups" on public.group_members;
 create policy "you see the membership of your own groups"
   on public.group_members for select using (public.is_group_member(group_id));
 
+drop policy if exists "you may add yourself to a group" on public.group_members;
 create policy "you may add yourself to a group"
   on public.group_members for insert with check (user_id = auth.uid());
 
+drop policy if exists "you may remove yourself from a group" on public.group_members;
 create policy "you may remove yourself from a group"
   on public.group_members for delete using (user_id = auth.uid());
 
@@ -266,48 +277,110 @@ alter table public.payees         enable row level security;
 alter table public.presets        enable row level security;
 alter table public.photos         enable row level security;
 
-create policy "group members read parties"   on public.parties for select using (public.is_group_member(group_id));
-create policy "group members write parties"  on public.parties for insert with check (public.is_group_member(group_id));
-create policy "group members update parties" on public.parties for update using (public.is_group_member(group_id)) with check (public.is_group_member(group_id));
-create policy "group members delete parties" on public.parties for delete using (public.is_group_member(group_id));
+drop policy if exists "group members read parties" on public.parties;
+create policy "group members read parties"
+  on public.parties for select using (public.is_group_member(group_id));
+drop policy if exists "group members write parties" on public.parties;
+create policy "group members write parties"
+  on public.parties for insert with check (public.is_group_member(group_id));
+drop policy if exists "group members update parties" on public.parties;
+create policy "group members update parties"
+  on public.parties for update using (public.is_group_member(group_id)) with check (public.is_group_member(group_id));
+drop policy if exists "group members delete parties" on public.parties;
+create policy "group members delete parties"
+  on public.parties for delete using (public.is_group_member(group_id));
 
-create policy "party members read people"   on public.party_people for select using (public.can_touch_party(party_id));
-create policy "party members write people"  on public.party_people for insert with check (public.can_touch_party(party_id));
-create policy "party members update people" on public.party_people for update using (public.can_touch_party(party_id)) with check (public.can_touch_party(party_id));
-create policy "party members delete people" on public.party_people for delete using (public.can_touch_party(party_id));
+drop policy if exists "party members read people" on public.party_people;
+create policy "party members read people"
+  on public.party_people for select using (public.can_touch_party(party_id));
+drop policy if exists "party members write people" on public.party_people;
+create policy "party members write people"
+  on public.party_people for insert with check (public.can_touch_party(party_id));
+drop policy if exists "party members update people" on public.party_people;
+create policy "party members update people"
+  on public.party_people for update using (public.can_touch_party(party_id)) with check (public.can_touch_party(party_id));
+drop policy if exists "party members delete people" on public.party_people;
+create policy "party members delete people"
+  on public.party_people for delete using (public.can_touch_party(party_id));
 
-create policy "party members read expenses"   on public.expenses for select using (public.can_touch_party(party_id));
-create policy "party members write expenses"  on public.expenses for insert with check (public.can_touch_party(party_id));
-create policy "party members update expenses" on public.expenses for update using (public.can_touch_party(party_id)) with check (public.can_touch_party(party_id));
-create policy "party members delete expenses" on public.expenses for delete using (public.can_touch_party(party_id));
+drop policy if exists "party members read expenses" on public.expenses;
+create policy "party members read expenses"
+  on public.expenses for select using (public.can_touch_party(party_id));
+drop policy if exists "party members write expenses" on public.expenses;
+create policy "party members write expenses"
+  on public.expenses for insert with check (public.can_touch_party(party_id));
+drop policy if exists "party members update expenses" on public.expenses;
+create policy "party members update expenses"
+  on public.expenses for update using (public.can_touch_party(party_id)) with check (public.can_touch_party(party_id));
+drop policy if exists "party members delete expenses" on public.expenses;
+create policy "party members delete expenses"
+  on public.expenses for delete using (public.can_touch_party(party_id));
 
-create policy "party members read shares" on public.expense_shares for select
+drop policy if exists "party members read shares" on public.expense_shares;
+create policy "party members read shares"
+  on public.expense_shares for select
   using (exists (select 1 from public.expenses e where e.id = expense_id and public.can_touch_party(e.party_id)));
-create policy "party members write shares" on public.expense_shares for insert
+drop policy if exists "party members write shares" on public.expense_shares;
+create policy "party members write shares"
+  on public.expense_shares for insert
   with check (exists (select 1 from public.expenses e where e.id = expense_id and public.can_touch_party(e.party_id)));
-create policy "party members update shares" on public.expense_shares for update
+drop policy if exists "party members update shares" on public.expense_shares;
+create policy "party members update shares"
+  on public.expense_shares for update
   using (exists (select 1 from public.expenses e where e.id = expense_id and public.can_touch_party(e.party_id)));
-create policy "party members delete shares" on public.expense_shares for delete
+drop policy if exists "party members delete shares" on public.expense_shares;
+create policy "party members delete shares"
+  on public.expense_shares for delete
   using (exists (select 1 from public.expenses e where e.id = expense_id and public.can_touch_party(e.party_id)));
 
-create policy "party members read settlements"   on public.settlements for select using (public.can_touch_party(party_id));
-create policy "party members write settlements"  on public.settlements for insert with check (public.can_touch_party(party_id));
-create policy "party members delete settlements" on public.settlements for delete using (public.can_touch_party(party_id));
+drop policy if exists "party members read settlements" on public.settlements;
+create policy "party members read settlements"
+  on public.settlements for select using (public.can_touch_party(party_id));
+drop policy if exists "party members write settlements" on public.settlements;
+create policy "party members write settlements"
+  on public.settlements for insert with check (public.can_touch_party(party_id));
+drop policy if exists "party members delete settlements" on public.settlements;
+create policy "party members delete settlements"
+  on public.settlements for delete using (public.can_touch_party(party_id));
 
-create policy "party members read photos"   on public.photos for select using (public.can_touch_party(party_id));
-create policy "party members write photos"  on public.photos for insert with check (public.can_touch_party(party_id));
-create policy "party members update photos" on public.photos for update using (public.can_touch_party(party_id)) with check (public.can_touch_party(party_id));
-create policy "party members delete photos" on public.photos for delete using (public.can_touch_party(party_id));
+drop policy if exists "party members read photos" on public.photos;
+create policy "party members read photos"
+  on public.photos for select using (public.can_touch_party(party_id));
+drop policy if exists "party members write photos" on public.photos;
+create policy "party members write photos"
+  on public.photos for insert with check (public.can_touch_party(party_id));
+drop policy if exists "party members update photos" on public.photos;
+create policy "party members update photos"
+  on public.photos for update using (public.can_touch_party(party_id)) with check (public.can_touch_party(party_id));
+drop policy if exists "party members delete photos" on public.photos;
+create policy "party members delete photos"
+  on public.photos for delete using (public.can_touch_party(party_id));
 
-create policy "group members read payees"   on public.payees for select using (public.is_group_member(group_id));
-create policy "group members write payees"  on public.payees for insert with check (public.is_group_member(group_id));
-create policy "group members update payees" on public.payees for update using (public.is_group_member(group_id)) with check (public.is_group_member(group_id));
-create policy "group members delete payees" on public.payees for delete using (public.is_group_member(group_id));
+drop policy if exists "group members read payees" on public.payees;
+create policy "group members read payees"
+  on public.payees for select using (public.is_group_member(group_id));
+drop policy if exists "group members write payees" on public.payees;
+create policy "group members write payees"
+  on public.payees for insert with check (public.is_group_member(group_id));
+drop policy if exists "group members update payees" on public.payees;
+create policy "group members update payees"
+  on public.payees for update using (public.is_group_member(group_id)) with check (public.is_group_member(group_id));
+drop policy if exists "group members delete payees" on public.payees;
+create policy "group members delete payees"
+  on public.payees for delete using (public.is_group_member(group_id));
 
-create policy "group members read presets"   on public.presets for select using (public.is_group_member(group_id));
-create policy "group members write presets"  on public.presets for insert with check (public.is_group_member(group_id));
-create policy "group members update presets" on public.presets for update using (public.is_group_member(group_id)) with check (public.is_group_member(group_id));
-create policy "group members delete presets" on public.presets for delete using (public.is_group_member(group_id));
+drop policy if exists "group members read presets" on public.presets;
+create policy "group members read presets"
+  on public.presets for select using (public.is_group_member(group_id));
+drop policy if exists "group members write presets" on public.presets;
+create policy "group members write presets"
+  on public.presets for insert with check (public.is_group_member(group_id));
+drop policy if exists "group members update presets" on public.presets;
+create policy "group members update presets"
+  on public.presets for update using (public.is_group_member(group_id)) with check (public.is_group_member(group_id));
+drop policy if exists "group members delete presets" on public.presets;
+create policy "group members delete presets"
+  on public.presets for delete using (public.is_group_member(group_id));
 
 -- ── photo storage ──────────────────────────────────────────────────────────
 -- Private bucket. Files are keyed <party_id>/<uuid>, and access is granted by
@@ -361,6 +434,7 @@ create index if not exists party_shares_party_idx on public.party_shares (party_
 
 alter table public.party_shares enable row level security;
 
+drop policy if exists "group members manage their share links" on public.party_shares;
 create policy "group members manage their share links"
   on public.party_shares for all
   using (public.can_touch_party(party_id))

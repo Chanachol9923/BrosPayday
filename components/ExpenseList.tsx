@@ -39,7 +39,7 @@ export function ExpenseList({
             <strong>{canAdd ? 'No expenses yet' : 'Add people first'}</strong>
             {canAdd
               ? 'Add what was bought, who paid, and who shared it.'
-              : 'PartyPayday needs at least one person before you can log a spend.'}
+              : 'BrosPayday needs at least one person before you can log a spend.'}
           </div>
         ) : (
           <div className="exp-list">

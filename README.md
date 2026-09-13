@@ -1,8 +1,8 @@
-# PartyPayday
+# BrosPayday
 
 Split any bill fairly — and show your work, so nobody argues.
 
-Add the people, add what was bought, tap who paid and who shared it. PartyPayday works out
+Add the people, add what was bought, tap who paid and who shared it. BrosPayday works out
 what each person actually owes, reduces it to the fewest possible transfers, and lays out the
 full derivation step by step.
 

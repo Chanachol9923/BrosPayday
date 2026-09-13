@@ -90,7 +90,7 @@ export function decodeState(code: string): EventState | null {
   }
 }
 
-export const STORAGE_KEY = 'partypayday.state.v1';
+export const STORAGE_KEY = 'brospayday.state.v1';
 
 export function loadLocal(): EventState | null {
   try {

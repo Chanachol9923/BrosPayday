@@ -2,13 +2,13 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'PartyPayday — split any bill, fairly',
+  title: 'BrosPayday — split any bill, fairly',
   description:
-    'Add people, add expenses, pick who shares what. PartyPayday works out who owes whom and shows the full proof so nobody argues.',
-  applicationName: 'PartyPayday',
-  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'PartyPayday' },
+    'Add people, add expenses, pick who shares what. BrosPayday works out who owes whom and shows the full proof so nobody argues.',
+  applicationName: 'BrosPayday',
+  appleWebApp: { capable: true, statusBarStyle: 'black-translucent', title: 'BrosPayday' },
   openGraph: {
-    title: 'PartyPayday — split any bill, fairly',
+    title: 'BrosPayday — split any bill, fairly',
     description: 'Who owes whom, with the math laid out so nobody argues.',
     type: 'website',
   },

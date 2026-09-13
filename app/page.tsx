@@ -244,7 +244,7 @@ export default function Page() {
               <Party size={17} />
             </span>
             <span className="brand-name">
-              Party<span>Payday</span>
+              Bros<span>Payday</span>
             </span>
           </span>
 

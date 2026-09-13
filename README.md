@@ -18,6 +18,49 @@ Most split-the-bill tools hand you a number and expect you to trust it. This one
 4. **Settling up** — which transfers clear it, plus a replay proving every balance lands on zero.
 5. **Automatic checks** — four invariants re-run on every change.
 
+## How a session works
+
+Opening the site hands you a **clean sheet**, not last night's party — but pressing
+refresh mid-party never wipes your work. A marker in `sessionStorage` tells the two
+apart: it survives a reload and dies with the tab. Whatever you were working on is
+filed into **History** automatically as the new session starts, so nothing is lost
+by simply closing the tab.
+
+History keeps the name you gave the party and the date it happened (both editable,
+and the date defaults to today). Search it by name, date or who was there. Opening
+an entry puts it back on the workbench and files the current one away — a swap, not
+a copy, so parties never quietly duplicate.
+
+## Users
+
+A friend group usually shares one phone at the table. Press the profile chip, add a
+name, and that person gets their own parties, history and presets. No password and
+no account — it is a way to keep separate tabs on one device, not a security
+boundary. Switching users starts that person's session fresh the same way.
+
+## Presets
+
+A preset is your usual crew saved under a name — “Bros”, “Office lunch”. Since every
+visit starts blank, one tap puts everybody back. Presets also remember the names of
+the expenses you usually have (“Pork”, “Karaoke room”) and offer them as one-tap
+starters. **Amounts are never stored in a preset.**
+
+## Sharing
+
+Press Share and you get a card showing exactly what is about to leave your phone —
+the party, the date, the people, the total, and your name as the sender. Then:
+
+- **Share…** hands it to the OS share sheet (straight into LINE, WhatsApp, wherever)
+  where the browser supports it;
+- **Copy link** puts the whole party in a URL;
+- **Copy summary for chat** produces plain text to paste.
+
+The party is packed into the link's fragment, so **nothing is uploaded** — there is no
+server holding anyone's numbers, and the fragment is never even sent to the host.
+Whoever opens the link sees a preview first and chooses **Open it** (onto their
+workbench, their own party saved to history first) or **Save to history** (filed away,
+nothing disturbed). Links made by older versions still open.
+
 ## What it handles
 
 - **Uneven groups** — only some people share the pork, only some drink.
@@ -28,13 +71,7 @@ Most split-the-bill tools hand you a number and expect you to trust it. This one
   largest-remainder method, so the parts always add back to the exact bill. No lost coins.
 - **15 currencies**, including zero-decimal ones (JPY, KRW, VND, IDR).
 
-## Sharing
-
-- **Copy summary for chat** — plain text ready to paste into a group chat.
-- **Copy share link** — the whole party is encoded in the URL fragment. Nothing is uploaded;
-  the data lives in the link itself and in the recipient's browser.
-
-Everything else is saved to `localStorage` on the device that created it.
+Everything is saved to `localStorage` on the device that created it.
 
 ## Run locally
 
@@ -96,17 +133,29 @@ app/
   layout.tsx        metadata, viewport, theme colour
   globals.css       design tokens + every component style
 components/
-  PeoplePanel       add / rename / remove people
-  ExpenseList       the expense rows
-  ExpenseSheet      bottom sheet editor with a live split preview
+  Sheet             the one modal shell (bottom sheet / centred dialog)
+  PartyHeader       party name and date
+  PeoplePanel       add / rename / remove people, preset chips
+  ExpenseList       the expense rows and preset starters
+  ExpenseSheet      editor with a live split preview
   Results           totals, who-pays-whom, per-person balances
   Proof             the four-step derivation and the checks
+  ProfileSheet      add / switch / rename / delete users
+  HistorySheet      past parties, searchable
+  PresetSheet       save, apply and manage templates
+  ShareSheet        share card, native share, link, summary
+  ImportSheet       preview of an incoming shared party
 lib/
   split.ts          allocate() + computeSplit() + settle()  ← all the maths
+  store.ts          profiles, history, presets, session handling
+  share.ts          the link codec
   types.ts          data model and currency table
   format.ts         money parsing and formatting
-  share.ts          link codec and localStorage
   example.ts        the sample party
+tests/
+  verify.js         the correctness suite
 ```
 
 All arithmetic lives in `lib/split.ts` and is integer-only — the UI never does money maths.
+Everything that moves parties between the workbench, history and presets lives in
+`lib/store.ts` as pure functions, which is why the suite can exercise it directly.

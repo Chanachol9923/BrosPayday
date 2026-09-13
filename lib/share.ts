@@ -1,11 +1,24 @@
-import type { EventState, Item, Person } from './types';
+import type { Party, Person, Item } from './types';
 import { uid } from './format';
+import { newParty, todayISO } from './store';
+
+type PackedItem = [string, number, number, number[], number[]];
 
 type Packed = {
+  /** Absent on links made before profiles and dates existed. */
+  v?: number;
   t: string;
+  d?: string;
   c: string;
+  b?: string;
   p: string[];
-  i: [string, number, number, number[], number[]][];
+  i: PackedItem[];
+};
+
+export type SharedParty = {
+  party: Party;
+  /** Whoever pressed Share, if their link carried a name. */
+  sharedBy: string | null;
 };
 
 function b64encode(text: string): string {
@@ -26,47 +39,58 @@ function b64decode(text: string): string {
 }
 
 /** People become array indexes, so a whole party fits in a link you can paste in chat. */
-export function encodeState(state: EventState): string {
-  const index = new Map(state.people.map((p, i) => [p.id, i] as const));
+export function encodeParty(party: Party, sharedBy?: string | null): string {
+  const index = new Map(party.people.map((p, i) => [p.id, i] as const));
+
   const packed: Packed = {
-    t: state.title,
-    c: state.currencyCode,
-    p: state.people.map((p) => p.name),
-    i: state.items.map((item) => {
-      const bearers = item.bearerIds
-        .map((id) => index.get(id))
-        .filter((v): v is number => v !== undefined);
+    v: 2,
+    t: party.title,
+    d: party.date,
+    c: party.currencyCode,
+    p: party.people.map((p) => p.name),
+    i: party.items.map((item): PackedItem => {
+      const kept = item.bearerIds.filter((id) => index.has(id));
       return [
         item.name,
         item.amount,
         item.payerId !== null ? index.get(item.payerId) ?? -1 : -1,
-        bearers,
-        item.bearerIds
-          .filter((id) => index.has(id))
-          .map((id) => item.weights?.[id] ?? 1),
+        kept.map((id) => index.get(id) as number),
+        kept.map((id) => item.weights?.[id] ?? 1),
       ];
     }),
   };
+
+  const by = sharedBy?.trim();
+  if (by) packed.b = by;
+
   return b64encode(JSON.stringify(packed));
 }
 
-export function decodeState(code: string): EventState | null {
+export function decodeParty(code: string): SharedParty | null {
   try {
     const packed = JSON.parse(b64decode(code)) as Packed;
     if (!packed || !Array.isArray(packed.p) || !Array.isArray(packed.i)) return null;
 
-    const people: Person[] = packed.p.map((name) => ({ id: uid('p'), name: String(name) }));
+    const people: Person[] = packed.p.map((name) => ({ id: uid('p'), name: String(name ?? '') }));
 
     const items: Item[] = packed.i.map((row) => {
-      const [name, amount, payerIdx, bearerIdxs, weightList] = row;
-      const bearerIds = (bearerIdxs ?? [])
-        .map((i) => people[i]?.id)
-        .filter((v): v is string => !!v);
+      const [name, amount, payerIdx, bearerIdxs, weightList] = row ?? ([] as unknown as PackedItem);
+
+      const bearerIds: string[] = [];
+      const seen = new Set<string>();
+      for (const idx of bearerIdxs ?? []) {
+        const id = people[idx]?.id;
+        if (id && !seen.has(id)) {
+          seen.add(id);
+          bearerIds.push(id);
+        }
+      }
 
       const weights: Record<string, number> = {};
-      bearerIds.forEach((id, i) => {
+      (bearerIdxs ?? []).forEach((idx, i) => {
+        const id = people[idx]?.id;
         const w = weightList?.[i];
-        if (Number.isFinite(w) && w > 0 && w !== 1) weights[id] = w;
+        if (id && Number.isFinite(w) && w > 0 && w !== 1) weights[id] = w;
       });
 
       return {
@@ -79,35 +103,34 @@ export function decodeState(code: string): EventState | null {
       };
     });
 
+    const blank = newParty(String(packed.c ?? 'THB'));
+
     return {
-      title: String(packed.t ?? 'Untitled'),
-      currencyCode: String(packed.c ?? 'THB'),
-      people,
-      items,
+      party: {
+        ...blank,
+        title: String(packed.t ?? ''),
+        date: typeof packed.d === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(packed.d) ? packed.d : todayISO(),
+        currencyCode: String(packed.c ?? 'THB'),
+        people,
+        items,
+      },
+      sharedBy: typeof packed.b === 'string' && packed.b.trim() ? packed.b.trim() : null,
     };
   } catch {
     return null;
   }
 }
 
-export const STORAGE_KEY = 'brospayday.state.v1';
+export const SHARE_PREFIX = '#p=';
 
-export function loadLocal(): EventState | null {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) return null;
-    const parsed = JSON.parse(raw) as EventState;
-    if (!parsed || !Array.isArray(parsed.people) || !Array.isArray(parsed.items)) return null;
-    return parsed;
-  } catch {
-    return null;
-  }
+export function buildShareUrl(party: Party, sharedBy?: string | null): string {
+  const { origin, pathname } = window.location;
+  return `${origin}${pathname}${SHARE_PREFIX}${encodeParty(party, sharedBy)}`;
 }
 
-export function saveLocal(state: EventState): void {
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  } catch {
-    /* private mode / quota — running without persistence is fine */
-  }
+/** Reads a shared party out of the address bar, accepting the older `#s=` links too. */
+export function readShareHash(hash: string): SharedParty | null {
+  if (hash.startsWith(SHARE_PREFIX)) return decodeParty(hash.slice(SHARE_PREFIX.length));
+  if (hash.startsWith('#s=')) return decodeParty(hash.slice(3));
+  return null;
 }

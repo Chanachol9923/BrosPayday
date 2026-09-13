@@ -1,24 +1,30 @@
 'use client';
 
 import { useState } from 'react';
-import type { Person } from '@/lib/types';
+import type { Person, Preset } from '@/lib/types';
 import { Avatar } from './Avatar';
-import { Plus, Users, X } from './Icons';
+import { Bookmark, Plus, Users, X } from './Icons';
 
 export function PeoplePanel({
   people,
+  presets,
   hueOf,
   usageOf,
   onAdd,
   onRename,
   onRemove,
+  onApplyPreset,
+  onManagePresets,
 }: {
   people: Person[];
+  presets: Preset[];
   hueOf: (id: string) => number;
   usageOf: (id: string) => number;
   onAdd: (names: string[]) => void;
   onRename: (id: string, name: string) => void;
   onRemove: (id: string) => void;
+  onApplyPreset: (id: string) => void;
+  onManagePresets: () => void;
 }) {
   const [draft, setDraft] = useState('');
 
@@ -51,9 +57,38 @@ export function PeoplePanel({
         <Users />
         <h2 className="card-title">Who&rsquo;s in</h2>
         <span className="pill">{people.length}</span>
+        <button
+          type="button"
+          className="btn sm ghost"
+          onClick={onManagePresets}
+          style={{ marginLeft: 'auto' }}
+        >
+          <Bookmark size={14} />
+          Presets
+        </button>
       </div>
 
       <div className="card-body">
+        {people.length === 0 && presets.length > 0 && (
+          <div className="preset-strip">
+            <span className="preset-strip-label">Start with</span>
+            <span className="picker">
+              {presets.map((preset) => (
+                <button
+                  type="button"
+                  key={preset.id}
+                  className="preset-chip"
+                  onClick={() => onApplyPreset(preset.id)}
+                >
+                  <Bookmark size={13} />
+                  {preset.name}
+                  <span className="preset-count">{preset.people.length}</span>
+                </button>
+              ))}
+            </span>
+          </div>
+        )}
+
         {people.length > 0 && (
           <div className="people-grid">
             {people.map((p) => (
@@ -105,7 +140,8 @@ export function PeoplePanel({
 
         {people.length === 0 && (
           <p className="hint" style={{ marginTop: 9 }}>
-            Tip — type several names separated by commas to add them all at once.
+            Tip — type several names separated by commas to add them all at once. Save a crew you
+            use often as a preset and it&rsquo;s one tap next time.
           </p>
         )}
       </div>

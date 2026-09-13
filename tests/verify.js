@@ -10,7 +10,11 @@
 const { computeSplit, allocate } = require('../.verify/split.js');
 const { exampleState } = require('../.verify/example.js');
 const { parseAmount, formatMoney, rescaleAmount } = require('../.verify/format.js');
-const { encodeState, decodeState } = require('../.verify/share.js');
+const { encodeParty, decodeParty } = require('../.verify/share.js');
+const {
+  applyPreset, archiveCurrent, deleteFromHistory, emptyStore, newParty,
+  presetFromParty, reopenFromHistory, sampleParty, updateCurrent,
+} = require('../.verify/store.js');
 
 let fails = 0;
 const fail = (msg) => {
@@ -233,8 +237,9 @@ section('money — parsing, display, currency changes');
 
 section('share links — round trip');
 {
-  const original = exampleState();
-  const restored = decodeState(encodeState(original));
+  const original = sampleParty();
+  const incoming = decodeParty(encodeParty(original, 'Somchai'));
+  const restored = incoming && incoming.party;
 
   if (!restored) {
     fail('a share link did not decode');
@@ -256,16 +261,96 @@ section('share links — round trip');
     JSON.stringify(shape(original, a)) === JSON.stringify(shape(restored, b))
       ? ok('a party survives encode -> link -> decode with identical results')
       : fail('share link round trip changed the numbers');
+
+    restored.date === original.date
+      ? ok('the party date travels with the link')
+      : fail(`date lost in transit: ${restored.date} vs ${original.date}`);
+
+    incoming.sharedBy === 'Somchai'
+      ? ok('the link says who shared it')
+      : fail(`sharedBy lost: ${incoming.sharedBy}`);
   }
 
-  decodeState('not-a-real-link') === null
+  decodeParty('not-a-real-link') === null
     ? ok('a corrupt link is rejected rather than half-loaded')
     : fail('corrupt link was accepted');
+
+  // Links made before profiles and dates existed must still open.
+  const legacy = decodeParty(
+    Buffer.from(JSON.stringify({
+      t: 'Old party', c: 'THB', p: ['A', 'B'],
+      i: [['Beer', 20000, 0, [0, 1], [1, 1]]],
+    })).toString('base64url'),
+  );
+  legacy && legacy.party.people.length === 2 && legacy.party.items[0].amount === 20000 && legacy.sharedBy === null
+    ? ok('a link from the previous version still opens')
+    : fail('backwards compatibility broken');
+}
+
+section('history and presets');
+{
+  const store = emptyStore();
+  const pid = store.activeProfileId;
+
+  // an empty sheet is not worth filing
+  const untouched = archiveCurrent(store, pid);
+  untouched.history[pid].length === 0
+    ? ok('starting fresh on a blank sheet files nothing away')
+    : fail('an empty party was archived');
+
+  // once money is on it, it gets kept
+  const withParty = updateCurrent(store, pid, () => ({ ...sampleParty(), title: 'Night one' }));
+  const archivedStore = archiveCurrent(withParty, pid);
+  const kept = archivedStore.history[pid][0];
+
+  kept && kept.title === 'Night one' && archivedStore.current[pid].items.length === 0
+    ? ok('saving hands back a blank sheet and keeps the old party')
+    : fail('archiveCurrent did not swap the party out');
+
+  // reopening takes it back out rather than duplicating it
+  const second = updateCurrent(archivedStore, pid, () => ({ ...sampleParty(), title: 'Night two' }));
+  const reopened = reopenFromHistory(second, pid, kept.id);
+
+  reopened.current[pid].title === 'Night one' &&
+  reopened.history[pid].length === 1 &&
+  reopened.history[pid][0].title === 'Night two'
+    ? ok('reopening swaps the two parties instead of cloning either')
+    : fail(`reopen went wrong: current=${reopened.current[pid].title}, history=${reopened.history[pid].map((p) => p.title)}`);
+
+  deleteFromHistory(reopened, pid, reopened.history[pid][0].id).history[pid].length === 0
+    ? ok('deleting from history removes exactly one entry')
+    : fail('delete from history misbehaved');
+
+  // presets: the crew and the usual names, never the amounts
+  const source = sampleParty();
+  const preset = presetFromParty(source, 'Bros');
+  const names = JSON.stringify(preset.people);
+
+  names === JSON.stringify(['Q', 'M', 'F', 'B', 'Y']) && preset.itemNames.length === source.items.length
+    ? ok('a preset captures the crew and the usual expense names')
+    : fail(`preset capture wrong: ${names}`);
+
+  JSON.stringify(preset).includes('amount')
+    ? fail('a preset stored an amount')
+    : ok('a preset carries no amounts');
+
+  const blank = newParty('THB');
+  const once = applyPreset(blank, preset);
+  const twice = applyPreset(once, preset);
+
+  once.people.length === 5 && twice.people.length === 5
+    ? ok('applying a preset twice does not double anybody up')
+    : fail(`preset apply duplicated people: ${once.people.length} then ${twice.people.length}`);
+
+  const partial = applyPreset({ ...newParty('THB'), people: [{ id: 'x', name: 'q' }] }, preset);
+  partial.people.length === 5
+    ? ok('a name already present is matched case-insensitively, not added twice')
+    : fail(`case-insensitive merge failed: ${partial.people.map((p) => p.name)}`);
 }
 
 section('the party this was built for');
 {
-  const st = exampleState();
+  const st = sampleParty();
   const r = computeSplit(st);
   const nm = (id) => st.people.find((p) => p.id === id).name;
   const as = (rec) => Object.fromEntries(st.people.map((p) => [p.name, rec[p.id] / 100]));

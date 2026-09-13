@@ -14,11 +14,54 @@ export type Item = {
   weights: Record<string, number>;
 };
 
+/** The part of a party the split engine cares about. */
 export type EventState = {
   title: string;
   currencyCode: string;
   people: Person[];
   items: Item[];
+};
+
+/** A party as it is stored: the split plus its identity, day and timestamps. */
+export type Party = EventState & {
+  id: string;
+  /** The day the party happened, as YYYY-MM-DD in local time. */
+  date: string;
+  createdAt: number;
+  updatedAt: number;
+};
+
+/** A local profile. No password, no account — just whose history this is. */
+export type Profile = {
+  id: string;
+  name: string;
+  createdAt: number;
+};
+
+/** A reusable party template: the same crew, the same usual expenses. */
+export type Preset = {
+  id: string;
+  /** What the template is called, e.g. "Bros" or "Office lunch". */
+  name: string;
+  /** Default party title when the preset is applied. */
+  title: string;
+  currencyCode: string;
+  people: string[];
+  /** Expense names to offer as one-tap starters. No amounts. */
+  itemNames: string[];
+  createdAt: number;
+};
+
+export type Store = {
+  version: 2;
+  profiles: Profile[];
+  activeProfileId: string;
+  /** profileId -> the party currently on the workbench */
+  current: Record<string, Party>;
+  /** profileId -> archived parties, newest first */
+  history: Record<string, Party[]>;
+  /** profileId -> saved templates */
+  presets: Record<string, Preset[]>;
 };
 
 export type Currency = {

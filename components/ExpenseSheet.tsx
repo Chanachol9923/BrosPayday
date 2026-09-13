@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { Sheet } from './Sheet';
 import type { Item, Person } from '@/lib/types';
 import { currencyOf } from '@/lib/types';
 import { allocate } from '@/lib/split';
 import { amountToInput, formatMoney, parseAmount } from '@/lib/format';
 import { Avatar } from './Avatar';
-import { Trash, X } from './Icons';
+import { Trash } from './Icons';
 
 export function ExpenseSheet({
   draft,
@@ -41,17 +42,8 @@ export function ExpenseSheet({
   const nameRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    document.body.classList.add('is-locked');
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
-    window.addEventListener('keydown', onKey);
     if (isNew) nameRef.current?.focus();
-    return () => {
-      document.body.classList.remove('is-locked');
-      window.removeEventListener('keydown', onKey);
-    };
-  }, [isNew, onClose]);
+  }, [isNew]);
 
   const amount = parseAmount(amountText, cur.decimals) ?? 0;
   const ordered = useMemo(
@@ -99,23 +91,26 @@ export function ExpenseSheet({
   const treat = !!payerId && ordered.length === 1 && ordered[0].id !== payerId;
 
   return (
-    <div
-      className="overlay"
-      onMouseDown={(e) => {
-        if (e.target === e.currentTarget) onClose();
-      }}
-    >
-      <div className="sheet" role="dialog" aria-modal="true" aria-label={isNew ? 'New expense' : 'Edit expense'}>
-        <div className="sheet-grip" />
-
-        <div className="sheet-head">
-          <span className="sheet-title">{isNew ? 'New expense' : 'Edit expense'}</span>
-          <button type="button" className="icon-btn bare" onClick={onClose} aria-label="Close">
-            <X size={18} />
+    <Sheet
+      title={isNew ? 'New expense' : 'Edit expense'}
+      onClose={onClose}
+      footer={
+        <>
+          {!isNew && (
+            <button type="button" className="btn danger icon-only" onClick={onDelete} aria-label="Delete expense">
+              <Trash />
+            </button>
+          )}
+          <button type="button" className="btn ghost" onClick={onClose}>
+            Cancel
           </button>
-        </div>
-
-        <div className="sheet-body">
+          <button type="button" className="btn primary" onClick={save} disabled={!!problem}>
+            {isNew ? 'Add' : 'Save'}
+          </button>
+        </>
+      }
+    >
+      <>
           <div className="form-group">
             <label className="label" htmlFor="exp-name">
               What was it?
@@ -285,22 +280,7 @@ export function ExpenseSheet({
               )}
             </div>
           </div>
-        </div>
-
-        <div className="sheet-foot">
-          {!isNew && (
-            <button type="button" className="btn danger icon-only" onClick={onDelete} aria-label="Delete expense">
-              <Trash />
-            </button>
-          )}
-          <button type="button" className="btn ghost" onClick={onClose}>
-            Cancel
-          </button>
-          <button type="button" className="btn primary" onClick={save} disabled={!!problem}>
-            {isNew ? 'Add' : 'Save'}
-          </button>
-        </div>
-      </div>
-    </div>
+      </>
+    </Sheet>
   );
 }

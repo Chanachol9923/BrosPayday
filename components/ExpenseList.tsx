@@ -13,14 +13,17 @@ export function ExpenseList({
   onOpen,
   onAdd,
   canAdd,
+  suggestions,
 }: {
   items: Item[];
   people: Person[];
   currencyCode: string;
   hueOf: (id: string) => number;
   onOpen: (id: string) => void;
-  onAdd: () => void;
+  onAdd: (name?: string) => void;
   canAdd: boolean;
+  /** Usual expense names from an applied preset, offered as one-tap starters. */
+  suggestions: string[];
 }) {
   const nameOf = (id: string | null) => people.find((p) => p.id === id)?.name ?? '';
   const total = items.reduce((a, i) => a + i.amount, 0);
@@ -94,11 +97,30 @@ export function ExpenseList({
           </div>
         )}
 
+        {canAdd && suggestions.length > 0 && (
+          <div className="preset-strip" style={{ marginTop: 12 }}>
+            <span className="preset-strip-label">Usual for this crew</span>
+            <span className="picker">
+              {suggestions.map((name) => (
+                <button
+                  type="button"
+                  key={name}
+                  className="preset-chip"
+                  onClick={() => onAdd(name)}
+                >
+                  <Plus size={13} />
+                  {name}
+                </button>
+              ))}
+            </span>
+          </div>
+        )}
+
         <button
           type="button"
           className="btn primary block"
           style={{ marginTop: 12 }}
-          onClick={onAdd}
+          onClick={() => onAdd()}
           disabled={!canAdd}
         >
           <Plus />

@@ -110,3 +110,50 @@ export const Party = ({ size = 18 }: P) => (
     <path d="M14 6.5a2.5 2.5 0 0 1 3.5-3M19 11a2 2 0 0 1 2-2M12.5 3.5 13 4M20 15.5l.5.5" />
   </svg>
 );
+
+export const Clock = ({ size = 18 }: P) => (
+  <svg {...base(size)}>
+    <circle cx="12" cy="12" r="9" />
+    <path d="M12 7v5l3.5 2" />
+  </svg>
+);
+
+export const Bookmark = ({ size = 18 }: P) => (
+  <svg {...base(size)}>
+    <path d="M6 4.5A1.5 1.5 0 0 1 7.5 3h9A1.5 1.5 0 0 1 18 4.5V21l-6-4-6 4Z" />
+  </svg>
+);
+
+export const Share = ({ size = 18 }: P) => (
+  <svg {...base(size)}>
+    <path d="M12 3v13M8 7l4-4 4 4" />
+    <path d="M5 14v5a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-5" />
+  </svg>
+);
+
+export const Calendar = ({ size = 18 }: P) => (
+  <svg {...base(size)}>
+    <rect x="3" y="5" width="18" height="16" rx="2" />
+    <path d="M3 10h18M8 3v4M16 3v4" />
+  </svg>
+);
+
+export const Pencil = ({ size = 16 }: P) => (
+  <svg {...base(size)}>
+    <path d="M4 20h4L19.5 8.5a2.1 2.1 0 0 0-3-3L5 17v3Z" />
+  </svg>
+);
+
+export const Inbox = ({ size = 18 }: P) => (
+  <svg {...base(size)}>
+    <path d="M12 3v11M8 10l4 4 4-4" />
+    <path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4" />
+  </svg>
+);
+
+export const Swap = ({ size = 18 }: P) => (
+  <svg {...base(size)}>
+    <path d="M7 4 4 7l3 3M4 7h11a4 4 0 0 1 4 4" />
+    <path d="m17 20 3-3-3-3M20 17H9a4 4 0 0 1-4-4" />
+  </svg>
+);

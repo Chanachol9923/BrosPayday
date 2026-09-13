@@ -7,7 +7,7 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "verify": "tsc lib/split.ts lib/example.ts lib/format.ts lib/types.ts lib/share.ts --outDir .verify --rootDir lib --module commonjs --target es2020 --skipLibCheck --esModuleInterop && node tests/verify.js"
+    "verify": "tsc lib/split.ts lib/example.ts lib/format.ts lib/types.ts lib/share.ts lib/store.ts --outDir .verify --rootDir lib --module commonjs --target es2020 --skipLibCheck --esModuleInterop && node tests/verify.js"
   },
   "dependencies": {
     "next": "^16.3.5",

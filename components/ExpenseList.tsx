@@ -15,6 +15,7 @@ export function ExpenseList({
   canAdd,
   suggestions,
   photoCountFor,
+  readOnly = false,
 }: {
   items: Item[];
   people: Person[];
@@ -26,6 +27,7 @@ export function ExpenseList({
   /** Usual expense names from an applied preset, offered as one-tap starters. */
   suggestions: string[];
   photoCountFor: (expenseId: string) => number;
+  readOnly?: boolean;
 }) {
   const nameOf = (id: string | null) => people.find((p) => p.id === id)?.name ?? '';
   const total = items.reduce((a, i) => a + i.amount, 0);
@@ -41,10 +43,12 @@ export function ExpenseList({
       <div className="card-body">
         {items.length === 0 ? (
           <div className="empty">
-            <strong>{canAdd ? 'No expenses yet' : 'Add people first'}</strong>
-            {canAdd
-              ? 'Add what was bought, who paid, and who shared it.'
-              : 'BrosPayday needs at least one person before you can log a spend.'}
+            <strong>{readOnly ? 'Nothing logged yet' : canAdd ? 'No expenses yet' : 'Add people first'}</strong>
+            {readOnly
+              ? 'Whoever shared this has not added anything.'
+              : canAdd
+                ? 'Add what was bought, who paid, and who shared it.'
+                : 'BrosPayday needs at least one person before you can log a spend.'}
           </div>
         ) : (
           <div className="exp-list">
@@ -108,7 +112,7 @@ export function ExpenseList({
           </div>
         )}
 
-        {canAdd && suggestions.length > 0 && (
+        {!readOnly && canAdd && suggestions.length > 0 && (
           <div className="preset-strip" style={{ marginTop: 12 }}>
             <span className="preset-strip-label">Usual for this crew</span>
             <span className="picker">
@@ -128,15 +132,17 @@ export function ExpenseList({
         )}
 
         {/* Hidden on phones, where the sticky dock already carries this action. */}
-        <button
-          type="button"
-          className="btn primary block add-inline"
-          onClick={() => onAdd()}
-          disabled={!canAdd}
-        >
-          <Plus />
-          Add expense
-        </button>
+        {!readOnly && (
+          <button
+            type="button"
+            className="btn primary block add-inline"
+            onClick={() => onAdd()}
+            disabled={!canAdd}
+          >
+            <Plus />
+            Add expense
+          </button>
+        )}
       </div>
     </section>
   );

@@ -7,11 +7,13 @@ export function PartyHeader({
   date,
   onTitle,
   onDate,
+  readOnly = false,
 }: {
   title: string;
   date: string;
   onTitle: (v: string) => void;
   onDate: (v: string) => void;
+  readOnly?: boolean;
 }) {
   return (
     <section className="party-head">
@@ -19,6 +21,7 @@ export function PartyHeader({
         className="party-title"
         value={title}
         onChange={(e) => onTitle(e.target.value)}
+        readOnly={readOnly}
         placeholder="Name this party"
         aria-label="Party name"
         autoComplete="off"
@@ -29,6 +32,8 @@ export function PartyHeader({
           type="date"
           value={date}
           onChange={(e) => onDate(e.target.value)}
+          readOnly={readOnly}
+          disabled={readOnly}
           aria-label="Date of the party"
         />
       </label>

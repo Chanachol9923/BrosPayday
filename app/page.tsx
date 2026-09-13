@@ -41,7 +41,36 @@ import {
 } from '@/lib/store';
 import type { SharedParty } from '@/lib/share';
 import { buildShareUrl, readShareHash } from '@/lib/share';
-import { QR_ENCODE, deletePhoto, deletePhotos, savePhoto, sweepOrphans } from '@/lib/photos';
+import {
+  QR_ENCODE,
+  deletePhoto,
+  deletePhotos,
+  getPhotoBlob,
+  savePhoto,
+  setCloudPhotoFetcher,
+  sweepOrphans,
+} from '@/lib/photos';
+import { cloudConfigured } from '@/lib/supabase/client';
+import { useCloud } from '@/lib/cloud/useCloud';
+import {
+  crewPath,
+  downloadPhoto,
+  receiptPath,
+  removePhoto as removePhoto_cloud,
+  uploadPhoto,
+} from '@/lib/cloud/photos';
+import { CloudGate, CloudLoading } from '@/components/CloudGate';
+import { CrewSheet } from '@/components/CrewSheet';
+import { diffParty } from '@/lib/cloud/diff';
+import type { ShareLink } from '@/lib/cloud/api';
+import {
+  applyOps,
+  createShareLink,
+  listShareLinks,
+  readSharedParty,
+  revokeShareLink,
+  writeSharedParty,
+} from '@/lib/cloud/api';
 import { PartyHeader } from '@/components/PartyHeader';
 import { PeoplePanel } from '@/components/PeoplePanel';
 import { ExpenseList } from '@/components/ExpenseList';
@@ -73,6 +102,9 @@ import {
 type SheetState = { draft: Item; isNew: boolean } | null;
 type Modal = null | 'profiles' | 'history' | 'presets' | 'share';
 
+const MODE_KEY = 'brospayday.mode';
+const MIGRATED_KEY = 'brospayday.migrated';
+
 export default function Page() {
   const [store, setStore] = useState<Store>(placeholderStore);
   const [loaded, setLoaded] = useState(false);
@@ -89,7 +121,19 @@ export default function Page() {
   const [payFor, setPayFor] = useState<{ fromId: string; toId: string; amount: number } | null>(null);
   const [photoIndex, setPhotoIndex] = useState<number | null>(null);
   const [photoBusy, setPhotoBusy] = useState(0);
+  const [localOnly, setLocalOnly] = useState(false);
+  /** Set when the page was opened with a share token rather than by a crew member. */
+  const [shareMode, setShareMode] = useState<{ token: string; role: 'view' | 'edit' } | null>(null);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [cloudLinks, setCloudLinks] = useState<ShareLink[]>([]);
+  const sharedBase = useRef<Party | null>(null);
   const didLoad = useRef(false);
+
+  const cloud = useCloud(store, setStore);
+  /** Cloud is in charge of the data — the local store is not persisted in this mode. */
+  const usingCloud = cloud.configured && !localOnly && !shareMode;
+  /** A view link may look at everything and change nothing. */
+  const readOnly = shareMode?.role === 'view';
 
   /* ── boot ────────────────────────────────────────────────────── */
   useEffect(() => {
@@ -104,6 +148,37 @@ export default function Page() {
       setIncoming(shared);
     }
 
+    const token = new URLSearchParams(window.location.search).get('s');
+    if (token && cloudConfigured) {
+      setShareLoading(true);
+      setLoaded(true);
+      void readSharedParty(token)
+        .then((found) => {
+          if (!found) {
+            setToast('That link is no longer valid');
+            return;
+          }
+          setShareMode({ token, role: found.role });
+          sharedBase.current = found.party;
+          setStore((prev) => ({
+            ...prev,
+            current: { ...prev.current, [prev.activeProfileId]: found.party },
+          }));
+        })
+        .finally(() => setShareLoading(false));
+      return;
+    }
+
+    const chosenLocal = localStorage.getItem(MODE_KEY) === 'local';
+    if (chosenLocal) setLocalOnly(true);
+
+    if (cloudConfigured && !chosenLocal) {
+      // useCloud pulls the crew's data; touching the local store here would
+      // briefly show someone else's device state and then fight the sync.
+      setLoaded(true);
+      return;
+    }
+
     // Nothing is seeded — a first visit and a later visit both begin on an
     // empty sheet, and whatever was open last time goes to history.
     const { store: saved } = loadStore();
@@ -115,8 +190,75 @@ export default function Page() {
   }, []);
 
   useEffect(() => {
-    if (loaded) saveStore(store);
-  }, [store, loaded]);
+    if (loaded && !usingCloud && !shareMode) saveStore(store);
+  }, [store, loaded, usingCloud, shareMode]);
+
+
+  // Photos taken on someone else's phone are fetched on demand and then cached.
+  useEffect(() => {
+    if (!usingCloud || !party) {
+      setCloudPhotoFetcher(null);
+      return;
+    }
+    setCloudPhotoFetcher(async (photoId) => {
+      const inParty = (party.photos ?? []).some((p) => p.id === photoId);
+      const path = inParty
+        ? receiptPath(party.id, photoId)
+        : cloud.activeCrewId
+          ? crewPath(cloud.activeCrewId, photoId)
+          : null;
+      return path ? downloadPhoto(path) : null;
+    });
+    return () => setCloudPhotoFetcher(null);
+  });
+
+  /**
+   * Anything already on this device is offered up the first time a crew is joined.
+   * It is a copy, not a move: the local data is left alone, so a failed upload or
+   * a change of mind costs nothing.
+   */
+  useEffect(() => {
+    if (!usingCloud || cloud.status !== 'ready' || !cloud.activeCrewId || !cloud.user) return;
+    if (localStorage.getItem(MIGRATED_KEY)) return;
+
+    const local = loadStore().store;
+    const mine = local.profiles.flatMap((pr) => [
+      local.current[pr.id],
+      ...(local.history[pr.id] ?? []),
+    ]);
+    const worthMoving = mine.filter((pt) => pt && pt.items.length > 0) as Party[];
+
+    localStorage.setItem(MIGRATED_KEY, 'asked');
+    if (worthMoving.length === 0) return;
+
+    const crewName = cloud.activeCrew?.name ?? 'this crew';
+    const ok = window.confirm(
+      `${worthMoving.length} ${worthMoving.length === 1 ? 'party is' : 'parties are'} saved on this device.
+
+` +
+        `Copy ${worthMoving.length === 1 ? 'it' : 'them'} into ${crewName}? The local copy is kept either way.`,
+    );
+    if (!ok) return;
+
+    const ops = worthMoving.flatMap((pt) => diffParty(null, pt));
+    applyOps(ops, {
+      groupId: cloud.activeCrewId,
+      userId: cloud.user.id,
+      // everything brought over lands in history, not on the workbench
+      archivedIds: new Set(worthMoving.map((pt) => pt.id)),
+    })
+      .then(() => setToast(`Moved ${worthMoving.length} into ${crewName}`))
+      .catch(() => setToast('Could not copy those up — they are still on this device'));
+  }, [usingCloud, cloud.status, cloud.activeCrewId, cloud.user, cloud.activeCrew]);
+
+  // An invite link drops someone straight into the right crew.
+  useEffect(() => {
+    if (!usingCloud || cloud.status !== 'no-crew') return;
+    const code = new URLSearchParams(window.location.search).get('crew');
+    if (!code) return;
+    history.replaceState(null, '', window.location.pathname);
+    void cloud.joinCrew(code);
+  }, [usingCloud, cloud]);
 
   // Deleting a party or trimming history can strand image blobs in IndexedDB.
   // One sweep per load keeps them from accumulating forever.
@@ -142,6 +284,26 @@ export default function Page() {
   const presets = store.presets[profileId] ?? [];
 
   const result = useMemo(() => computeSplit(party), [party]);
+
+  // Someone holding an edit link: push just their party, through the token.
+  useEffect(() => {
+    if (shareMode?.role !== 'edit') return;
+    const base = sharedBase.current;
+    if (!base) return;
+
+    const ops = diffParty(base, party);
+    if (ops.length === 0) return;
+
+    const timer = setTimeout(() => {
+      writeSharedParty(shareMode.token, ops)
+        .then(() => {
+          sharedBase.current = party;
+        })
+        .catch(() => setToast('Could not save — the link may have been revoked'));
+    }, 700);
+
+    return () => clearTimeout(timer);
+  }, [party, shareMode]);
   const cur = currencyOf(party.currencyCode);
 
   const hues = useMemo(() => {
@@ -160,9 +322,13 @@ export default function Page() {
   );
 
   /* ── party edits ─────────────────────────────────────────────── */
-  const updateParty = useCallback((fn: (p: Party) => Party) => {
-    setStore((prev) => updateCurrent(prev, prev.activeProfileId, fn));
-  }, []);
+  const updateParty = useCallback(
+    (fn: (p: Party) => Party) => {
+      if (readOnly) return;
+      setStore((prev) => updateCurrent(prev, prev.activeProfileId, fn));
+    },
+    [readOnly],
+  );
 
   const addPeople = (names: string[]) =>
     updateParty((p) => ({
@@ -198,6 +364,12 @@ export default function Page() {
       const id = uid();
       try {
         const saved = await savePhoto(file, id);
+
+        if (usingCloud) {
+          const blob = await getPhotoBlob(id, 'full');
+          if (blob) await uploadPhoto(receiptPath(party.id, id), blob);
+        }
+
         updateParty((p) =>
           addPhotoMeta(p, {
             id: saved.id,
@@ -221,6 +393,7 @@ export default function Page() {
     setPhotoIndex(remaining.length === 0 ? null : (i) => (i === null ? null : Math.min(i, remaining.length - 1)));
     updateParty((p) => removePhotoMeta(p, photoId));
     await deletePhoto(photoId).catch(() => undefined);
+    if (usingCloud) await removePhoto_cloud(receiptPath(party.id, photoId)).catch(() => undefined);
   };
 
   const linkPhoto = (photoId: string, expenseId: string | null) =>
@@ -247,6 +420,12 @@ export default function Page() {
     setPhotoBusy((n) => n + 1);
     try {
       await savePhoto(file, id, QR_ENCODE);
+
+      if (usingCloud && cloud.activeCrewId) {
+        const blob = await getPhotoBlob(id, 'full');
+        if (blob) await uploadPhoto(crewPath(cloud.activeCrewId, id), blob);
+      }
+
       setStore((prev) => setPayee(prev, prev.activeProfileId, person.name, { qrPhotoId: id }));
       if (previous) await deletePhoto(previous).catch(() => undefined);
       setToast(`Saved ${person.name}'s QR`);
@@ -262,7 +441,12 @@ export default function Page() {
     if (!person) return;
     const previous = lookupPayee(store, profileId, person.name)?.qrPhotoId ?? null;
     setStore((prev) => setPayee(prev, prev.activeProfileId, person.name, { qrPhotoId: null }));
-    if (previous) await deletePhoto(previous).catch(() => undefined);
+    if (previous) {
+      await deletePhoto(previous).catch(() => undefined);
+      if (usingCloud && cloud.activeCrewId) {
+        await removePhoto_cloud(crewPath(cloud.activeCrewId, previous)).catch(() => undefined);
+      }
+    }
   };
 
   const setMemberPromptPay = (personId: string, value: string) => {
@@ -462,6 +646,27 @@ export default function Page() {
     setShareUrl(buildShareUrl(party, profile?.name));
     setMenuOpen(false);
     setModal('share');
+    if (usingCloud) {
+      void listShareLinks(party.id)
+        .then(setCloudLinks)
+        .catch(() => setCloudLinks([]));
+    }
+  };
+
+  const addShareLink = async (role: 'view' | 'edit') => {
+    if (!usingCloud || !cloud.user) return;
+    try {
+      const link = await createShareLink(party.id, role, cloud.user.id);
+      setCloudLinks((prev) => [...prev, link]);
+      await write(`${window.location.origin}/?s=${link.token}`, 'Link created and copied');
+    } catch {
+      setToast('Could not create that link');
+    }
+  };
+
+  const dropShareLink = async (token: string) => {
+    setCloudLinks((prev) => prev.filter((l) => l.token !== token));
+    await revokeShareLink(token).catch(() => setToast('Could not revoke that link'));
   };
 
   /* ── importing a shared party ────────────────────────────────── */
@@ -487,6 +692,36 @@ export default function Page() {
   };
 
   /* ── render ──────────────────────────────────────────────────── */
+
+  // Before there is anywhere to put the data, the app is one screen: sign in,
+  // then pick a crew. Choosing to stay local skips all of it for good.
+  const chooseLocal = () => {
+    localStorage.setItem(MODE_KEY, 'local');
+    setLocalOnly(true);
+    const { store: saved } = loadStore();
+    const { store: next } = startSession(saved, saved.activeProfileId);
+    setStore(next);
+  };
+
+  if (shareLoading) return <CloudLoading label="Opening the shared party…" />;
+
+  if (usingCloud && cloud.status !== 'ready') {
+    if (cloud.status === 'loading') {
+      return <CloudLoading label={cloud.user ? 'Loading your parties…' : 'Just a moment…'} />;
+    }
+    return (
+      <CloudGate
+        status={cloud.status}
+        error={cloud.error}
+        onSignIn={() => void cloud.signIn()}
+        onStartCrew={(name) => void cloud.startCrew(name)}
+        onJoinCrew={(code) => void cloud.joinCrew(code)}
+        onStayLocal={chooseLocal}
+        onSignOut={() => void cloud.signOut()}
+      />
+    );
+  }
+
   return (
     <div className="shell" data-view={view}>
       <header className="topbar">
@@ -505,6 +740,7 @@ export default function Page() {
           <button
             type="button"
             className="icon-btn"
+            hidden={!!shareMode}
             onClick={() => setModal('history')}
             aria-label={`History — ${historyList.length} saved`}
           >
@@ -515,11 +751,13 @@ export default function Page() {
           <button
             type="button"
             className="profile-btn"
+            hidden={!!shareMode}
             onClick={() => setModal('profiles')}
             aria-label={`Signed in as ${profile?.name ?? 'user'} — switch user`}
           >
             <Avatar name={profile?.name ?? '?'} hue={hueForIndex(profileIndex)} size="xs" />
             <span className="profile-name">{profile?.name}</span>
+            {usingCloud && cloud.syncing && <span className="sync-dot" aria-label="saving" />}
             <Chevron size={14} />
           </button>
 
@@ -527,6 +765,7 @@ export default function Page() {
             <button
               type="button"
               className="icon-btn"
+              hidden={!!shareMode}
               onClick={() => setMenuOpen((v) => !v)}
               aria-label="More options"
               aria-expanded={menuOpen}
@@ -592,11 +831,23 @@ export default function Page() {
         </div>
       </header>
 
+      {shareMode && (
+        <div className="share-bar">
+          <span>
+            {readOnly
+              ? 'Someone shared this with you to look at.'
+              : 'You can add what you bought — everything saves back to them.'}
+          </span>
+          <span className={readOnly ? 'pill' : 'pill accent'}>{readOnly ? 'View only' : 'Can edit'}</span>
+        </div>
+      )}
+
       <PartyHeader
         title={party.title}
         date={party.date}
         onTitle={(v) => updateParty((p) => ({ ...p, title: v }))}
         onDate={(v) => updateParty((p) => ({ ...p, date: v }))}
+        readOnly={!!shareMode}
       />
 
       <nav className="switch" role="tablist" aria-label="Sections">
@@ -634,6 +885,7 @@ export default function Page() {
             onManagePresets={() => setModal('presets')}
             onOpenMember={setMemberId}
             hasPayment={(id) => !!payeeForPerson(id)}
+            readOnly={readOnly}
           />
           <ExpenseList
             items={party.items}
@@ -645,7 +897,9 @@ export default function Page() {
             canAdd={party.people.length > 0}
             suggestions={suggestions}
             photoCountFor={(id) => photosForExpense(party, id).length}
+            readOnly={readOnly}
           />
+          {!readOnly && (
           <PhotoShelf
             photos={party.photos ?? []}
             items={party.items}
@@ -653,6 +907,7 @@ export default function Page() {
             onAdd={(files) => void addPhotos(files)}
             onOpen={(id) => setPhotoIndex((party.photos ?? []).findIndex((p) => p.id === id))}
           />
+          )}
         </div>
 
         <div className="col-results">
@@ -676,7 +931,7 @@ export default function Page() {
         </div>
       </main>
 
-      <div className="dock">
+      <div className="dock" hidden={readOnly}>
         <div className="dock-inner">
           {view === 'setup' ? (
             <button
@@ -726,7 +981,35 @@ export default function Page() {
         />
       )}
 
-      {modal === 'profiles' && (
+      {modal === 'profiles' && usingCloud && (
+        <CrewSheet
+          crews={cloud.crews}
+          activeId={cloud.activeCrewId}
+          userName={
+            (cloud.user?.user_metadata?.full_name as string | undefined) ??
+            cloud.user?.email ??
+            'you'
+          }
+          onSwitch={(id) => {
+            cloud.switchCrew(id);
+            setModal(null);
+          }}
+          onRename={(id, name) => void cloud.rename(id, name)}
+          onCreate={(name) => {
+            void cloud.startCrew(name);
+            setModal(null);
+          }}
+          onJoin={(code) => {
+            void cloud.joinCrew(code);
+            setModal(null);
+          }}
+          onSignOut={() => void cloud.signOut()}
+          onCopy={(text, message) => void write(text, message)}
+          onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'profiles' && !usingCloud && (
         <ProfileSheet
           profiles={store.profiles}
           activeId={profileId}
@@ -767,8 +1050,12 @@ export default function Page() {
           url={shareUrl}
           summary={summaryText()}
           sharedBy={profile?.name ?? 'a friend'}
+          cloudLinks={usingCloud ? cloudLinks : null}
+          onCreateLink={(role) => void addShareLink(role)}
+          onRevokeLink={(token) => void dropShareLink(token)}
           onCopyLink={() => write(shareUrl, 'Link copied')}
           onCopySummary={copySummary}
+          onCopyText={(text, message) => void write(text, message)}
           onClose={() => setModal(null)}
         />
       )}
@@ -841,6 +1128,12 @@ export default function Page() {
         />
       )}
 
+      {usingCloud && cloud.error && (
+        <button type="button" className="toast toast-error" onClick={cloud.dismissError}>
+          {cloud.error} — tap to dismiss
+        </button>
+      )}
+
       {toast && (
         <div className="toast" role="status">
           {toast}
@@ -848,7 +1141,12 @@ export default function Page() {
       )}
 
       <p className="hint" style={{ textAlign: 'center', marginTop: 22, paddingBottom: 6 }}>
-        Saved on this device only · {historyList.length} in history · amounts in {cur.code}
+        {shareMode
+          ? `Shared party · ${readOnly ? 'view only' : 'you can add expenses'}`
+          : usingCloud
+            ? `Synced to ${cloud.activeCrew?.name ?? 'your crew'} · ${historyList.length} in history`
+            : `Saved on this device only · ${historyList.length} in history`}{' '}
+        · amounts in {cur.code}
       </p>
     </div>
   );

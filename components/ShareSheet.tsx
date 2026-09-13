@@ -5,23 +5,33 @@ import type { Party } from '@/lib/types';
 import { formatMoney } from '@/lib/format';
 import { partyLabel, relativeDate } from '@/lib/store';
 import { Sheet } from './Sheet';
-import { Copy, Link, Share } from './Icons';
+import type { ShareLink } from '@/lib/cloud/api';
+import { Copy, Link, Qr, Share, Trash } from './Icons';
 
 export function ShareSheet({
   party,
   url,
   summary,
   sharedBy,
+  cloudLinks,
+  onCreateLink,
+  onRevokeLink,
   onCopyLink,
   onCopySummary,
+  onCopyText,
   onClose,
 }: {
   party: Party;
   url: string;
   summary: string;
   sharedBy: string;
+  /** Null when the app is local-only: there is no server to host a live link. */
+  cloudLinks: ShareLink[] | null;
+  onCreateLink: (role: 'view' | 'edit') => void;
+  onRevokeLink: (token: string) => void;
   onCopyLink: () => void;
   onCopySummary: () => void;
+  onCopyText: (text: string, message: string) => void;
   onClose: () => void;
 }) {
   const [canNativeShare, setCanNativeShare] = useState(false);
@@ -76,8 +86,75 @@ export function ShareSheet({
         </button>
       </div>
 
-      <label className="label" htmlFor="share-url" style={{ marginTop: 15 }}>
-        The link
+      {cloudLinks && (
+        <>
+          <div className="divider" />
+          <span className="label">A live link to this party</span>
+          <p className="hint" style={{ marginBottom: 11 }}>
+            Unlike the snapshot below, these stay in step with the party. Nobody needs to sign in.
+          </p>
+
+          {cloudLinks.length > 0 && (
+            <div className="row-list" style={{ marginBottom: 11 }}>
+              {cloudLinks.map((link) => {
+                const url = `${typeof window === 'undefined' ? '' : window.location.origin}/?s=${link.token}`;
+                return (
+                  <div className="row-card" key={link.token}>
+                    <span className={link.role === 'edit' ? 'pill accent' : 'pill'}>
+                      {link.role === 'edit' ? 'Can edit' : 'View only'}
+                    </span>
+                    <span className="row-main">
+                      <span className="row-sub" style={{ marginTop: 0 }}>
+                        {url.replace(/^https?:\/\//, '')}
+                      </span>
+                    </span>
+                    <button
+                      type="button"
+                      className="btn sm"
+                      onClick={() => onCopyText(url, 'Link copied')}
+                      aria-label="Copy this link"
+                    >
+                      <Copy size={14} />
+                    </button>
+                    <button
+                      type="button"
+                      className="icon-btn sm bare"
+                      onClick={() => {
+                        if (window.confirm('Revoke this link? Anyone using it loses access.')) {
+                          onRevokeLink(link.token);
+                        }
+                      }}
+                      aria-label="Revoke this link"
+                    >
+                      <Trash size={15} />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          <div className="share-actions">
+            <button type="button" className="btn block" onClick={() => onCreateLink('view')}>
+              <Qr size={16} />
+              New view-only link
+            </button>
+            <button type="button" className="btn block" onClick={() => onCreateLink('edit')}>
+              <Share size={16} />
+              New link they can add to
+            </button>
+          </div>
+          <p className="hint" style={{ marginTop: 9 }}>
+            An edit link lets someone add what they bought. It reaches this party and nothing else —
+            not your other parties, not your crew.
+          </p>
+        </>
+      )}
+
+      <div className="divider" />
+
+      <label className="label" htmlFor="share-url">
+        A snapshot link
       </label>
       <input
         id="share-url"
@@ -90,9 +167,8 @@ export function ShareSheet({
       />
 
       <p className="hint" style={{ marginTop: 9 }}>
-        The whole party is packed into the link itself — nothing is uploaded anywhere and there is
-        no server holding your numbers. Whoever opens it gets their own copy to keep or edit;
-        changes they make don&rsquo;t come back to you.
+        This one packs the whole party into the link itself, so nothing is uploaded. Whoever opens
+        it gets their own copy frozen at this moment; what they change never comes back to you.
       </p>
     </Sheet>
   );

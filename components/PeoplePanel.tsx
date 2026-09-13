@@ -17,6 +17,7 @@ export function PeoplePanel({
   onManagePresets,
   onOpenMember,
   hasPayment,
+  readOnly = false,
 }: {
   people: Person[];
   presets: Preset[];
@@ -29,6 +30,7 @@ export function PeoplePanel({
   onRemove: (id: string) => void;
   onApplyPreset: (id: string) => void;
   onManagePresets: () => void;
+  readOnly?: boolean;
 }) {
   const [draft, setDraft] = useState('');
 
@@ -61,19 +63,21 @@ export function PeoplePanel({
         <Users />
         <h2 className="card-title">Who&rsquo;s in</h2>
         <span className="pill">{people.length}</span>
-        <button
-          type="button"
-          className="btn sm ghost"
-          onClick={onManagePresets}
-          style={{ marginLeft: 'auto' }}
-        >
-          <Bookmark size={14} />
-          Presets
-        </button>
+        {!readOnly && (
+          <button
+            type="button"
+            className="btn sm ghost"
+            onClick={onManagePresets}
+            style={{ marginLeft: 'auto' }}
+          >
+            <Bookmark size={14} />
+            Presets
+          </button>
+        )}
       </div>
 
       <div className="card-body">
-        {people.length === 0 && presets.length > 0 && (
+        {!readOnly && people.length === 0 && presets.length > 0 && (
           <div className="preset-strip">
             <span className="preset-strip-label">Start with</span>
             <span className="picker">
@@ -113,24 +117,28 @@ export function PeoplePanel({
                 <input
                   className="pname"
                   value={p.name}
+                  readOnly={readOnly}
                   onChange={(e) => onRename(p.id, e.target.value)}
                   style={{ width: `${Math.min(12, Math.max(2, p.name.length + 0.5))}ch` }}
                   aria-label={`Name of ${p.name || 'person'}`}
                   spellCheck={false}
                 />
-                <button
-                  type="button"
-                  className="icon-btn sm bare"
-                  onClick={() => tryRemove(p)}
-                  aria-label={`Remove ${p.name || 'person'}`}
-                >
-                  <X size={14} />
-                </button>
+                {!readOnly && (
+                  <button
+                    type="button"
+                    className="icon-btn sm bare"
+                    onClick={() => tryRemove(p)}
+                    aria-label={`Remove ${p.name || 'person'}`}
+                  >
+                    <X size={14} />
+                  </button>
+                )}
               </span>
             ))}
           </div>
         )}
 
+        {!readOnly && (
         <div className="add-person">
           <input
             className="field"
@@ -153,8 +161,9 @@ export function PeoplePanel({
             <span className="sr">Add person</span>
           </button>
         </div>
+        )}
 
-        {people.length === 0 && (
+        {!readOnly && people.length === 0 && (
           <p className="hint" style={{ marginTop: 9 }}>
             Tip — type several names separated by commas to add them all at once. Save a crew you
             use often as a preset and it&rsquo;s one tap next time.

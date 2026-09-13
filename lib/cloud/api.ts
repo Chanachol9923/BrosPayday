@@ -419,3 +419,123 @@ export function subscribeToGroup(groupId: string, onChange: () => void): () => v
     void db.removeChannel(channel);
   };
 }
+
+/* ── share links ─────────────────────────────────────────────────── */
+
+export type ShareLink = { token: string; role: 'view' | 'edit' };
+
+/** Long enough that guessing one is hopeless, short enough to paste in chat. */
+function makeToken(): string {
+  const bytes = new Uint8Array(18);
+  crypto.getRandomValues(bytes);
+  return btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+}
+
+export async function listShareLinks(partyId: string): Promise<ShareLink[]> {
+  const { data, error } = await client()
+    .from('party_shares')
+    .select('token, role')
+    .eq('party_id', partyId)
+    .is('revoked_at', null);
+
+  if (error) throw error;
+  return (data ?? []) as ShareLink[];
+}
+
+export async function createShareLink(
+  partyId: string,
+  role: 'view' | 'edit',
+  userId: string,
+): Promise<ShareLink> {
+  const token = makeToken();
+  const { error } = await client()
+    .from('party_shares')
+    .insert({ token, party_id: partyId, role, created_by: userId });
+
+  if (error) throw error;
+  return { token, role };
+}
+
+export async function revokeShareLink(token: string): Promise<void> {
+  const { error } = await client()
+    .from('party_shares')
+    .update({ revoked_at: new Date().toISOString() })
+    .eq('token', token);
+  if (error) throw error;
+}
+
+export type SharedPartyView = { role: 'view' | 'edit'; party: Party };
+
+/** Read a party with nothing but a link. No sign-in, no crew. */
+export async function readSharedParty(token: string): Promise<SharedPartyView | null> {
+  const db = supabase();
+  if (!db) return null;
+
+  const { data, error } = await db.rpc('share_read', { tok: token });
+  if (error || !data) return null;
+
+  const raw = data as {
+    role: 'view' | 'edit';
+    party: { id: string; title: string; party_date: string; currency_code: string; created_at: string; updated_at: string };
+    people: { id: string; name: string }[];
+    expenses: {
+      id: string;
+      name: string;
+      amount: number;
+      payer_id: string | null;
+      shares: { person_id: string; weight: number }[];
+    }[];
+    photos: { id: string; expense_id: string | null; bytes: number; w: number; h: number; created_at: string }[];
+  };
+
+  return {
+    role: raw.role,
+    party: {
+      id: raw.party.id,
+      title: raw.party.title,
+      date: raw.party.party_date,
+      currencyCode: raw.party.currency_code,
+      people: (raw.people ?? []).map((p) => ({ id: p.id, name: p.name })),
+      items: (raw.expenses ?? []).map((e) => {
+        const weights: Record<string, number> = {};
+        for (const s of e.shares ?? []) if (s.weight !== 1) weights[s.person_id] = s.weight;
+        return {
+          id: e.id,
+          name: e.name,
+          amount: Number(e.amount),
+          payerId: e.payer_id,
+          bearerIds: (e.shares ?? []).map((s) => s.person_id),
+          weights,
+        };
+      }),
+      photos: (raw.photos ?? []).map((p) => ({
+        id: p.id,
+        expenseId: p.expense_id,
+        bytes: p.bytes,
+        w: p.w,
+        h: p.h,
+        addedAt: new Date(p.created_at).getTime(),
+      })),
+      createdAt: new Date(raw.party.created_at).getTime(),
+      updatedAt: new Date(raw.party.updated_at).getTime(),
+    },
+  };
+}
+
+/** Push changes made by someone holding an edit link. The database re-checks the role. */
+export async function writeSharedParty(token: string, ops: RowOp[]): Promise<void> {
+  const db = supabase();
+  if (!db || ops.length === 0) return;
+
+  const payload = ops
+    .filter((o) => o.table === 'expenses' || o.table === 'expense_shares' || o.table === 'party_people')
+    .map((o) => {
+      if (o.table === 'expenses' && o.op === 'upsert') {
+        return { table: o.table, op: o.op, id: o.id, order: o.order, item: o.item };
+      }
+      return o;
+    });
+
+  const { error } = await db.rpc('share_write', { tok: token, ops: payload });
+  if (error) throw error;
+}

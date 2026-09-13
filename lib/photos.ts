@@ -170,12 +170,62 @@ export async function savePhoto(file: File, id: string, opts: SaveOptions = {}):
 
 const urlCache = new Map<string, string>();
 
+/**
+ * How to fetch a photo this device has never seen. Set by the app when cloud sync
+ * is on; without it, IndexedDB is the only source and a photo taken on another
+ * phone simply is not available — which is the correct local-only behaviour.
+ */
+type CloudFetcher = (photoId: string) => Promise<Blob | null>;
+let fetchFromCloud: CloudFetcher | null = null;
+
+export function setCloudPhotoFetcher(fetcher: CloudFetcher | null): void {
+  fetchFromCloud = fetcher;
+}
+
+export async function getPhotoBlob(id: string, kind: 'full' | 'thumb' = 'full'): Promise<Blob | null> {
+  const record = await tx<StoredPhoto | undefined>('readonly', (store) => store.get(id));
+  if (!record) return null;
+  return kind === 'full' ? record.full : record.thumb;
+}
+
+/** Put a blob fetched from elsewhere into the local cache, thumbnail and all. */
+export async function cachePhoto(id: string, full: Blob): Promise<StoredPhoto | null> {
+  try {
+    const bitmap = await createImageBitmap(full);
+    try {
+      const thumb = await encode(bitmap, THUMB_EDGE, THUMB_QUALITY);
+      const record: StoredPhoto = {
+        id,
+        full,
+        thumb,
+        w: bitmap.width,
+        h: bitmap.height,
+        bytes: full.size + thumb.size,
+        addedAt: Date.now(),
+      };
+      await tx('readwrite', (store) => store.put(record) as IDBRequest<IDBValidKey>);
+      return record;
+    } finally {
+      bitmap.close?.();
+    }
+  } catch {
+    return null;
+  }
+}
+
 export async function photoUrl(id: string, kind: 'full' | 'thumb' = 'thumb'): Promise<string | null> {
   const key = `${id}:${kind}`;
   const cached = urlCache.get(key);
   if (cached) return cached;
 
-  const record = await tx<StoredPhoto | undefined>('readonly', (store) => store.get(id));
+  let record = await tx<StoredPhoto | undefined>('readonly', (store) => store.get(id));
+
+  // Not on this device yet — pull it down once and keep it.
+  if (!record && fetchFromCloud) {
+    const blob = await fetchFromCloud(id).catch(() => null);
+    if (blob) record = (await cachePhoto(id, blob)) ?? undefined;
+  }
+
   if (!record) return null;
 
   const url = URL.createObjectURL(kind === 'full' ? record.full : record.thumb);

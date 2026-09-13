@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Sheet } from './Sheet';
 import type { Item, Person } from '@/lib/types';
 import { currencyOf } from '@/lib/types';
-import { allocate } from '@/lib/split';
+import { shareOut } from '@/lib/split';
 import { amountToInput, formatMoney, parseAmount } from '@/lib/format';
 import { Avatar } from './Avatar';
 import { Trash } from './Icons';
@@ -35,8 +35,20 @@ export function ExpenseSheet({
   const [payerId, setPayerId] = useState<string | null>(draft.payerId);
   const [bearerIds, setBearerIds] = useState<string[]>(draft.bearerIds);
   const [weights, setWeights] = useState<Record<string, number>>(draft.weights ?? {});
+  /**
+   * Held as text, not numbers: someone typing "2" on the way to "20" must not have
+   * the field rewritten under them, and a half-typed "1." has to survive too.
+   */
+  const [extraText, setExtraText] = useState<Record<string, string>>(() => {
+    const out: Record<string, string> = {};
+    for (const [id, v] of Object.entries(draft.extras ?? {})) {
+      if (v > 0) out[id] = amountToInput(v, currencyOf(currencyCode).decimals);
+    }
+    return out;
+  });
   const [uneven, setUneven] = useState(
-    Object.values(draft.weights ?? {}).some((w) => w !== 1),
+    Object.values(draft.weights ?? {}).some((w) => w !== 1) ||
+      Object.values(draft.extras ?? {}).some((v) => v > 0),
   );
 
   const nameRef = useRef<HTMLInputElement>(null);
@@ -50,8 +62,19 @@ export function ExpenseSheet({
     () => people.filter((p) => bearerIds.includes(p.id)),
     [people, bearerIds],
   );
-  const weightList = ordered.map((p) => (uneven ? weights[p.id] ?? 1 : 1));
-  const parts = allocate(amount, weightList);
+  /** Whatever this person is down for on their own, as a clean integer. */
+  const extraOf = (id: string) => {
+    if (!uneven) return 0;
+    const v = parseAmount(extraText[id] ?? '', cur.decimals);
+    return v !== null && v > 0 ? v : 0;
+  };
+
+  // The same function the engine and the proof use, so what is previewed here is
+  // what will actually be owed — there is no second implementation to drift.
+  const { parts, extraTotal, rest } = shareOut(
+    amount,
+    ordered.map((p) => ({ weight: uneven ? weights[p.id] ?? 1 : 1, extra: extraOf(p.id) })),
+  );
 
   const toggleBearer = (id: string) =>
     setBearerIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
@@ -66,15 +89,25 @@ export function ExpenseSheet({
         ? 'Pick who actually paid.'
         : ordered.length === 0
           ? 'Pick at least one person to share this.'
-          : null;
+          : extraTotal > amount
+            ? `The amounts people had to themselves come to ${formatMoney(
+                extraTotal,
+                currencyCode,
+              )} — more than the expense.`
+            : null;
 
   const save = () => {
     if (problem) return;
     const cleanWeights: Record<string, number> = {};
+    const cleanExtras: Record<string, number> = {};
     if (uneven) {
+      // Only the people actually sharing it, and only values worth storing —
+      // anything left behind by a person since unticked goes no further.
       for (const p of ordered) {
         const w = weights[p.id] ?? 1;
         if (w !== 1) cleanWeights[p.id] = w;
+        const e = extraOf(p.id);
+        if (e > 0) cleanExtras[p.id] = e;
       }
     }
     onSave({
@@ -84,6 +117,7 @@ export function ExpenseSheet({
       payerId,
       bearerIds: ordered.map((p) => p.id),
       weights: cleanWeights,
+      extras: cleanExtras,
     });
   };
 
@@ -196,6 +230,9 @@ export function ExpenseSheet({
                     <Avatar name={p.name} hue={hueOf(p.id)} size="xs" />
                     {p.name || 'Unnamed'}
                     {on && uneven && w !== 1 && <span className="w">×{w}</span>}
+                    {on && uneven && extraOf(p.id) > 0 && (
+                      <span className="w own">+{formatMoney(extraOf(p.id), currencyCode)}</span>
+                    )}
                   </button>
                 );
               })}
@@ -217,38 +254,85 @@ export function ExpenseSheet({
                 </label>
 
                 {uneven && (
-                  <div className="weights">
-                    {ordered.map((p, i) => {
-                      const w = weights[p.id] ?? 1;
-                      return (
-                        <div className="weight-row" key={p.id}>
-                          <Avatar name={p.name} hue={hueOf(p.id)} size="xs" />
-                          <span className="nm">{p.name || 'Unnamed'}</span>
-                          <span className="stepper">
-                            <button
-                              type="button"
-                              className="icon-btn sm"
-                              onClick={() => setWeight(p.id, w - 1)}
-                              disabled={w <= 1}
-                              aria-label={`Fewer shares for ${p.name}`}
-                            >
-                              &minus;
-                            </button>
-                            <span className="val">×{w}</span>
-                            <button
-                              type="button"
-                              className="icon-btn sm"
-                              onClick={() => setWeight(p.id, w + 1)}
-                              aria-label={`More shares for ${p.name}`}
-                            >
-                              +
-                            </button>
-                          </span>
-                          <span className="amt">{formatMoney(parts[i] ?? 0, currencyCode)}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
+                  <>
+                    <p className="hint" style={{ margin: '9px 0 8px' }}>
+                      Put anything one person had to themselves in their own box — it comes off the
+                      top and goes straight to them. The rest is divided by shares, so ×2 still
+                      means twice as much of what is left.
+                    </p>
+
+                    <div className="weights">
+                      {ordered.map((p, i) => {
+                        const w = weights[p.id] ?? 1;
+                        const own = extraOf(p.id);
+                        return (
+                          <div className={`weight-row${own > 0 ? ' has-own' : ''}`} key={p.id}>
+                            <Avatar name={p.name} hue={hueOf(p.id)} size="xs" />
+                            <span className="nm">{p.name || 'Unnamed'}</span>
+                            <span className="amt">{formatMoney(parts[i] ?? 0, currencyCode)}</span>
+
+                            <span className="weight-ctl">
+                              <span className="stepper">
+                                <button
+                                  type="button"
+                                  className="icon-btn sm"
+                                  onClick={() => setWeight(p.id, w - 1)}
+                                  disabled={w <= 1}
+                                  aria-label={`Fewer shares for ${p.name}`}
+                                >
+                                  &minus;
+                                </button>
+                                <span className="val">×{w}</span>
+                                <button
+                                  type="button"
+                                  className="icon-btn sm"
+                                  onClick={() => setWeight(p.id, w + 1)}
+                                  aria-label={`More shares for ${p.name}`}
+                                >
+                                  +
+                                </button>
+                              </span>
+
+                              <span className="own-field">
+                                <span className="own-label">theirs alone</span>
+                                <span className="cur">{cur.symbol}</span>
+                                <input
+                                  className="own-input num"
+                                  value={extraText[p.id] ?? ''}
+                                  placeholder="0"
+                                  inputMode="decimal"
+                                  autoComplete="off"
+                                  enterKeyHint="done"
+                                  onChange={(e) =>
+                                    setExtraText((prev) => ({ ...prev, [p.id]: e.target.value }))
+                                  }
+                                  onFocus={(e) => e.currentTarget.select()}
+                                  aria-label={`Amount only ${p.name} had, not shared`}
+                                />
+                              </span>
+                            </span>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {extraTotal > 0 && (
+                      <p className={`split-maths${rest < 0 ? ' bad' : ''}`}>
+                        {formatMoney(extraTotal, currencyCode)} goes straight to whoever had it
+                        {rest >= 0 ? (
+                          <>
+                            {' · '}
+                            <b>{formatMoney(rest, currencyCode)}</b> left to divide
+                          </>
+                        ) : (
+                          <>
+                            {' · '}
+                            <b>{formatMoney(-rest, currencyCode)} over the expense</b>
+                          </>
+                        )}
+                      </p>
+                    )}
+                  </>
                 )}
               </>
             )}

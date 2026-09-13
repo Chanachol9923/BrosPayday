@@ -598,6 +598,7 @@ export default function Page() {
         payerId,
         bearerIds: party.people.map((p) => p.id),
         weights: {},
+        extras: {},
       },
     });
   };

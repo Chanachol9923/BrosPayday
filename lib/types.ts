@@ -24,6 +24,13 @@ export type Item = {
   bearerIds: string[];
   /** personId -> share weight. Missing means 1. Only used when a split is uneven. */
   weights: Record<string, number>;
+  /**
+   * personId -> an exact amount, in minor units, that this person carries alone.
+   * It comes off the top before the rest is divided: the karaoke room was 300,
+   * but A ate 20 of snacks, so A is down for 20 and 280 is what gets shared.
+   * Missing means nothing of their own.
+   */
+  extras: Record<string, number>;
 };
 
 /** The part of a party the split engine cares about. */

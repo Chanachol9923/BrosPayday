@@ -105,6 +105,11 @@ function coerce(raw: unknown): Store | null {
       if (!party) continue;
       if (!Array.isArray(party.photos)) party.photos = [];
       if (!party.repayments || typeof party.repayments !== 'object') party.repayments = {};
+      // Expenses saved before anyone could carry part of one alone.
+      for (const item of party.items ?? []) {
+        if (!item.weights || typeof item.weights !== 'object') item.weights = {};
+        if (!item.extras || typeof item.extras !== 'object') item.extras = {};
+      }
     }
   }
   return s;

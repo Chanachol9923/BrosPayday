@@ -59,9 +59,10 @@ export function Proof({
               <span className="step-title">How each expense was divided</span>
             </div>
             <p className="step-note">
-              Amounts are split to the smallest unit. When a division isn&rsquo;t clean, the leftover
-              goes to whoever&rsquo;s remainder was largest — so the parts always add back to the
-              exact bill.
+              Anything one person had to themselves comes off the top first and goes straight to
+              them. What is left is split to the smallest unit; when a division isn&rsquo;t clean,
+              the leftover goes to whoever&rsquo;s remainder was largest — so the parts always add
+              back to the exact bill.
             </p>
 
             {result.breakdowns.length === 0 ? (
@@ -100,6 +101,26 @@ export function Proof({
                         ))
                       )}
                     </div>
+
+                    {/* Where an amount came from matters as much as what it is. */}
+                    {b.extraTotal > 0 && (
+                      <div className="math-own">
+                        {b.bearers
+                          .filter((p) => (b.extras[p.id] ?? 0) > 0)
+                          .map((p, i) => (
+                            <span key={p.id}>
+                              {i > 0 && ', '}
+                              {p.name} had <b>{money(b.extras[p.id] ?? 0)}</b> of that alone
+                            </span>
+                          ))}
+                        {' — the other '}
+                        <b>{money(b.rest)}</b>
+                        {' was divided'}
+                        {b.bearers.length > 0 && ` between ${b.bearers.length}`}
+                        {b.bearers.length === 1 ? ' person' : ' people'}
+                        {'.'}
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>

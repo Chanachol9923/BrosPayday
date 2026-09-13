@@ -20,7 +20,12 @@ export type RowOp =
   | { table: 'party_people'; op: 'delete'; id: string }
   | { table: 'expenses'; op: 'upsert'; id: string; partyId: string; item: Item; order: number }
   | { table: 'expenses'; op: 'delete'; id: string }
-  | { table: 'expense_shares'; op: 'replace'; expenseId: string; shares: { personId: string; weight: number }[] }
+  | {
+      table: 'expense_shares';
+      op: 'replace';
+      expenseId: string;
+      shares: { personId: string; weight: number; extra: number }[];
+    }
   | { table: 'repayments'; op: 'upsert'; partyId: string; fromId: string; toId: string; amountPaid: number }
   | { table: 'repayments'; op: 'delete'; partyId: string; fromId: string; toId: string }
   | { table: 'photos'; op: 'upsert'; id: string; partyId: string; photo: PhotoMeta }
@@ -58,15 +63,24 @@ function peopleOps(prev: Party | null, next: Party): RowOp[] {
   return ops;
 }
 
-function sharesOf(item: Item): { personId: string; weight: number }[] {
-  return item.bearerIds.map((id) => ({ personId: id, weight: item.weights?.[id] ?? 1 }));
+function sharesOf(item: Item): { personId: string; weight: number; extra: number }[] {
+  return item.bearerIds.map((id) => ({
+    personId: id,
+    weight: item.weights?.[id] ?? 1,
+    extra: item.extras?.[id] ?? 0,
+  }));
 }
 
 function sharesEqual(a: Item, b: Item): boolean {
   const left = sharesOf(a);
   const right = sharesOf(b);
   if (left.length !== right.length) return false;
-  return left.every((s, i) => s.personId === right[i].personId && s.weight === right[i].weight);
+  return left.every(
+    (s, i) =>
+      s.personId === right[i].personId &&
+      s.weight === right[i].weight &&
+      s.extra === right[i].extra,
+  );
 }
 
 function expenseOps(prev: Party | null, next: Party): RowOp[] {

@@ -131,8 +131,13 @@ export async function loadGroup(groupId: string): Promise<GroupData> {
           db.from('repayments').select('*').in('party_id', partyIds),
         ]);
 
-  const sharesByExpense = new Map<string, { person_id: string; weight: number }[]>();
-  for (const row of (shareRes.data ?? []) as { expense_id: string; person_id: string; weight: number }[]) {
+  const sharesByExpense = new Map<string, { person_id: string; weight: number; extra: number }[]>();
+  for (const row of (shareRes.data ?? []) as {
+    expense_id: string;
+    person_id: string;
+    weight: number;
+    extra: number;
+  }[]) {
     const list = sharesByExpense.get(row.expense_id) ?? [];
     list.push(row);
     sharesByExpense.set(row.expense_id, list);
@@ -156,7 +161,11 @@ export async function loadGroup(groupId: string): Promise<GroupData> {
       .map((e) => {
         const shares = sharesByExpense.get(e.id) ?? [];
         const weights: Record<string, number> = {};
-        for (const s of shares) if (s.weight !== 1) weights[s.person_id] = s.weight;
+        const extras: Record<string, number> = {};
+        for (const s of shares) {
+          if (s.weight !== 1) weights[s.person_id] = s.weight;
+          if (s.extra) extras[s.person_id] = Number(s.extra);
+        }
 
         return {
           id: e.id,
@@ -165,6 +174,7 @@ export async function loadGroup(groupId: string): Promise<GroupData> {
           payerId: e.payer_id,
           bearerIds: shares.map((s) => s.person_id),
           weights,
+          extras,
         };
       });
 
@@ -321,7 +331,12 @@ export async function applyOps(ops: RowOp[], ctx: { groupId: string; userId: str
         if (op.shares.length === 0) return;
 
         const { error } = await db.from('expense_shares').insert(
-          op.shares.map((s) => ({ expense_id: op.expenseId, person_id: s.personId, weight: s.weight })),
+          op.shares.map((s) => ({
+            expense_id: op.expenseId,
+            person_id: s.personId,
+            weight: s.weight,
+            extra: s.extra,
+          })),
         );
         if (error) throw error;
         return;
@@ -493,7 +508,7 @@ export async function readSharedParty(token: string): Promise<SharedPartyView | 
       name: string;
       amount: number;
       payer_id: string | null;
-      shares: { person_id: string; weight: number }[];
+      shares: { person_id: string; weight: number; extra: number }[];
     }[];
     photos: { id: string; expense_id: string | null; bytes: number; w: number; h: number; created_at: string }[];
     repayments?: { from_person: string; to_person: string; amount_paid: number }[];
@@ -509,7 +524,11 @@ export async function readSharedParty(token: string): Promise<SharedPartyView | 
       people: (raw.people ?? []).map((p) => ({ id: p.id, name: p.name })),
       items: (raw.expenses ?? []).map((e) => {
         const weights: Record<string, number> = {};
-        for (const s of e.shares ?? []) if (s.weight !== 1) weights[s.person_id] = s.weight;
+        const extras: Record<string, number> = {};
+        for (const s of e.shares ?? []) {
+          if (s.weight !== 1) weights[s.person_id] = s.weight;
+          if (s.extra) extras[s.person_id] = Number(s.extra);
+        }
         return {
           id: e.id,
           name: e.name,
@@ -517,6 +536,7 @@ export async function readSharedParty(token: string): Promise<SharedPartyView | 
           payerId: e.payer_id,
           bearerIds: (e.shares ?? []).map((s) => s.person_id),
           weights,
+          extras,
         };
       }),
       photos: (raw.photos ?? []).map((p) => ({

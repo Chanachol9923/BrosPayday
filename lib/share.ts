@@ -2,7 +2,12 @@ import type { Party, Person, Item } from './types';
 import { uid } from './format';
 import { newParty, todayISO } from './store';
 
-type PackedItem = [string, number, number, number[], number[]];
+/**
+ * name, amount, payer index, bearer indexes, weights, and — only when somebody
+ * had an amount of their own — what each of them carried alone. The last slot is
+ * absent in links made before that existed, which decode as nobody having any.
+ */
+type PackedItem = [string, number, number, number[], number[], number[]?];
 
 type Packed = {
   /** Absent on links made before profiles and dates existed. */
@@ -43,20 +48,25 @@ export function encodeParty(party: Party, sharedBy?: string | null): string {
   const index = new Map(party.people.map((p, i) => [p.id, i] as const));
 
   const packed: Packed = {
-    v: 2,
+    v: 3,
     t: party.title,
     d: party.date,
     c: party.currencyCode,
     p: party.people.map((p) => p.name),
     i: party.items.map((item): PackedItem => {
       const kept = item.bearerIds.filter((id) => index.has(id));
-      return [
+      const extras = kept.map((id) => item.extras?.[id] ?? 0);
+      const row: PackedItem = [
         item.name,
         item.amount,
         item.payerId !== null ? index.get(item.payerId) ?? -1 : -1,
         kept.map((id) => index.get(id) as number),
         kept.map((id) => item.weights?.[id] ?? 1),
       ];
+      // Left out entirely when there is nothing to say, so ordinary splits keep
+      // making short links.
+      if (extras.some((v) => v > 0)) row.push(extras);
+      return row;
     }),
   };
 
@@ -74,7 +84,8 @@ export function decodeParty(code: string): SharedParty | null {
     const people: Person[] = packed.p.map((name) => ({ id: uid(), name: String(name ?? '') }));
 
     const items: Item[] = packed.i.map((row) => {
-      const [name, amount, payerIdx, bearerIdxs, weightList] = row ?? ([] as unknown as PackedItem);
+      const [name, amount, payerIdx, bearerIdxs, weightList, extraList] =
+        row ?? ([] as unknown as PackedItem);
 
       const bearerIds: string[] = [];
       const seen = new Set<string>();
@@ -87,10 +98,14 @@ export function decodeParty(code: string): SharedParty | null {
       }
 
       const weights: Record<string, number> = {};
+      const extras: Record<string, number> = {};
       (bearerIdxs ?? []).forEach((idx, i) => {
         const id = people[idx]?.id;
+        if (!id) return;
         const w = weightList?.[i];
-        if (id && Number.isFinite(w) && w > 0 && w !== 1) weights[id] = w;
+        if (Number.isFinite(w) && w > 0 && w !== 1) weights[id] = w;
+        const e = extraList?.[i];
+        if (Number.isFinite(e) && (e as number) > 0) extras[id] = Math.round(e as number);
       });
 
       return {
@@ -100,6 +115,7 @@ export function decodeParty(code: string): SharedParty | null {
         payerId: people[payerIdx]?.id ?? null,
         bearerIds,
         weights,
+        extras,
       };
     });
 

@@ -41,13 +41,78 @@ export function allocate(amount: number, weights: number[]): number[] {
   return base.map((v) => v * sign);
 }
 
+/** One bearer's terms for an expense: how much is theirs alone, then their share of the rest. */
+export type Terms = {
+  /** Share of whatever is left after the personal amounts come off. Missing means 1. */
+  weight: number;
+  /** An exact amount in minor units this person carries alone. Missing means 0. */
+  extra: number;
+};
+
+export type ShareOut = {
+  /** What each person owes in the end: their own amount plus their share of the rest. */
+  parts: number[];
+  /** The personal amounts, after junk has been cleaned out of them. */
+  extras: number[];
+  extraTotal: number;
+  /** What was left to divide once the personal amounts came off. Can be negative. */
+  rest: number;
+  /** Each person's slice of that remainder. */
+  shared: number[];
+};
+
+/**
+ * Divide one expense among the people sharing it.
+ *
+ * Two things happen, in this order. Anything a person is carrying alone — "the
+ * karaoke was 300 but A ate 20 of snacks" — comes off the top and goes straight
+ * to them. Whatever is left is divided by weight, to the last satang, by the
+ * largest-remainder method.
+ *
+ * The guarantee, whatever is thrown at it: the parts add up to `amount` exactly.
+ * That holds even when the personal amounts come to more than the expense, in
+ * which case the remainder is negative and is shared out as a credit — wrong as
+ * an intention, but never money invented or lost. computeSplit flags that case;
+ * the arithmetic itself stays honest either way.
+ *
+ * This is the only place an expense is divided. The engine, the live preview in
+ * the expense sheet, and the proof all call it, so they cannot drift apart.
+ */
+export function shareOut(amount: number, entries: Terms[]): ShareOut {
+  const total = Number.isFinite(amount) ? Math.round(amount) : 0;
+  if (entries.length === 0) {
+    return { parts: [], extras: [], extraTotal: 0, rest: total, shared: [] };
+  }
+
+  const extras = entries.map((e) =>
+    Number.isFinite(e.extra) && e.extra > 0 ? Math.round(e.extra) : 0,
+  );
+  const extraTotal = extras.reduce((a, b) => a + b, 0);
+  const rest = total - extraTotal;
+
+  // A weight of zero or nonsense reads as one share: everybody named here is
+  // taking part, so nobody silently drops out of the division.
+  const weights = entries.map((e) =>
+    Number.isFinite(e.weight) && e.weight > 0 ? Math.round(e.weight) : 1,
+  );
+  const shared = allocate(rest, weights);
+
+  return { parts: extras.map((own, i) => own + shared[i]), extras, extraTotal, rest, shared };
+}
+
 export type ItemBreakdown = {
   item: Item;
   payer: Person | null;
   bearers: Person[];
   /** personId -> minor units this person owes for this item */
   perPerson: Record<string, number>;
-  /** true when every bearer carries the same amount */
+  /** personId -> the part of that they carry alone, before anything is divided */
+  extras: Record<string, number>;
+  /** the sum of those personal amounts */
+  extraTotal: number;
+  /** what was left to divide after they came off */
+  rest: number;
+  /** true when every bearer carries the same amount and nobody had extras */
   even: boolean;
   evenShare: number;
   /** allocation adds up exactly to the item amount */
@@ -150,15 +215,28 @@ export function computeSplit(state: EventState): SplitResult {
     if (bearers.length === 0) itemProblems.push('No one is sharing this expense.');
     if (item.amount <= 0) itemProblems.push('Amount must be greater than zero.');
 
-    const weights = bearers.map((p) => {
-      const w = item.weights?.[p.id];
-      return Number.isFinite(w) && (w as number) > 0 ? (w as number) : 1;
-    });
-    const parts = allocate(item.amount, weights);
+    const { parts, extras, extraTotal, rest } = shareOut(
+      item.amount,
+      bearers.map((p) => ({
+        weight: item.weights?.[p.id] ?? 1,
+        // Only people actually sharing this expense can carry a part of it alone.
+        // An amount left over for somebody since removed is dropped, exactly as a
+        // stale bearer id is, rather than charged to a person who is not on it.
+        extra: item.extras?.[p.id] ?? 0,
+      })),
+    );
+
+    if (extraTotal > item.amount && item.amount > 0) {
+      itemProblems.push(
+        'The amounts set aside for individuals come to more than the expense itself.',
+      );
+    }
 
     const perPerson: Record<string, number> = {};
+    const extraOf: Record<string, number> = {};
     bearers.forEach((p, i) => {
-      perPerson[p.id] = (perPerson[p.id] ?? 0) + parts[i];
+      perPerson[p.id] = parts[i];
+      if (extras[i] > 0) extraOf[p.id] = extras[i];
     });
 
     const sum = parts.reduce((a, b) => a + b, 0);
@@ -168,13 +246,16 @@ export function computeSplit(state: EventState): SplitResult {
     for (const p of bearers) owed[p.id] = (owed[p.id] ?? 0) + (perPerson[p.id] ?? 0);
     total += item.amount;
 
-    const even = parts.length > 0 && parts.every((v) => v === parts[0]);
+    const even = extraTotal === 0 && parts.length > 0 && parts.every((v) => v === parts[0]);
 
     breakdowns.push({
       item,
       payer,
       bearers,
       perPerson,
+      extras: extraOf,
+      extraTotal,
+      rest,
       even,
       evenShare: even ? parts[0] : 0,
       exact,
@@ -205,7 +286,8 @@ export function computeSplit(state: EventState): SplitResult {
     {
       label: 'Every expense is fully allocated',
       ok: breakdowns.every((b) => b.exact),
-      detail: 'Each expense is divided down to the last unit — nothing is rounded away.',
+      detail:
+        'Each expense is divided down to the last unit — personal amounts included, nothing rounded away.',
     },
     {
       label: 'Total shared equals total spent',

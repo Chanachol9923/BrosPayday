@@ -588,6 +588,17 @@ button:disabled { cursor: not-allowed; opacity: 0.45; }
 .math-eq { margin-top: 4px; font-size: 13px; color: var(--text-dim); font-variant-numeric: tabular-nums; line-height: 1.6; }
 .math-eq b { color: var(--text); font-weight: 680; }
 
+.math-own {
+  margin-top: 5px;
+  padding-left: 9px;
+  border-left: 2px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  font-size: 12.5px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.55;
+}
+.math-own b { color: var(--accent); font-weight: 700; }
+
 .scroller {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
@@ -838,6 +849,12 @@ table.grid .cellname { display: flex; align-items: center; gap: 7px; }
   font-size: 11px;
   font-weight: 750;
 }
+/* An exact amount of their own reads differently from a multiplier. */
+.pick .w.own {
+  background: color-mix(in srgb, var(--accent) 26%, transparent);
+  color: var(--accent);
+  font-variant-numeric: tabular-nums;
+}
 
 .row-between { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 
@@ -853,20 +870,101 @@ table.grid .cellname { display: flex; align-items: center; gap: 7px; }
 }
 .quick button:hover { color: var(--text); border-color: var(--border-strong); }
 
-.weights { margin-top: 11px; display: flex; flex-direction: column; gap: 7px; }
+.weights { margin-top: 4px; display: flex; flex-direction: column; gap: 7px; }
+
+/*
+ * Two lines: who and what they end up paying, then the controls that decide it.
+ * One line cannot hold a name, a stepper and a money field on a phone without
+ * squeezing the name down to nothing.
+ */
 .weight-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  grid-template-areas:
+    'av  nm  amt'
+    'ctl ctl ctl';
   align-items: center;
-  gap: 10px;
-  padding: 6px 10px 6px 6px;
+  gap: 7px 9px;
+  padding: 8px 10px;
   border-radius: var(--radius-sm);
   background: var(--surface-2);
   border: 1px solid var(--border);
 }
-.weight-row .nm { flex: 1; font-size: 13.5px; font-weight: 620; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.weight-row > :first-child { grid-area: av; }
+.weight-row .nm {
+  grid-area: nm;
+  font-size: 13.5px;
+  font-weight: 620;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.weight-row .amt {
+  grid-area: amt;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.weight-row.has-own { border-color: color-mix(in srgb, var(--accent) 32%, transparent); }
+.weight-row.has-own .amt { color: var(--accent); }
+
+.weight-ctl {
+  grid-area: ctl;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .stepper { display: flex; align-items: center; gap: 2px; }
 .stepper .val { min-width: 34px; text-align: center; font-size: 13.5px; font-weight: 700; font-variant-numeric: tabular-nums; }
-.weight-row .amt { font-size: 13px; color: var(--text-dim); min-width: 62px; text-align: right; font-variant-numeric: tabular-nums; }
+
+/* What one person had entirely to themselves, before anything is divided. */
+.own-field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  padding: 3px 9px;
+  border-radius: 8px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  min-width: 0;
+}
+.own-field:focus-within { border-color: var(--accent); background: var(--surface-3); }
+.own-label { font-size: 11.5px; color: var(--text-faint); white-space: nowrap; }
+.own-field .cur { color: var(--text-faint); font-size: 12.5px; }
+.own-input {
+  width: 62px;
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: 16px; /* keeps iOS Safari from zooming on focus */
+  font-weight: 650;
+}
+.own-input:focus { outline: none; }
+.own-input::placeholder { color: var(--text-faint); font-weight: 500; }
+
+.split-maths {
+  margin: 9px 0 0;
+  font-size: 12.5px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+}
+.split-maths b { color: var(--text); }
+.split-maths.bad, .split-maths.bad b { color: var(--neg); }
+
+@media (max-width: 360px) {
+  /* Shrink rather than hide: a lone currency symbol gives no clue what it wants. */
+  .own-field { padding: 3px 7px; gap: 3px; }
+  .own-label { font-size: 10.5px; }
+  .own-input { width: 46px; }
+  .stepper .val { min-width: 28px; }
+}
 
 .preview {
   margin-top: 14px;

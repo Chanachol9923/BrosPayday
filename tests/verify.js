@@ -7,7 +7,9 @@
  * parties, plus the edge cases a real user (or a hand-edited share link) can reach.
  */
 
-const { computeSplit, allocate, repaymentKey, repaymentView } = require('../.verify/split.js');
+const {
+  computeSplit, allocate, repaymentKey, repaymentView, shareOut,
+} = require('../.verify/split.js');
 const { parseAmount, formatMoney, rescaleAmount } = require('../.verify/format.js');
 const { encodeParty, decodeParty } = require('../.verify/share.js');
 const {
@@ -122,13 +124,25 @@ section('computeSplit — randomised parties');
       const weights = {};
       if (rnd() < 0.3) for (const id of bearerIds) weights[id] = ri(1, 5);
 
+      const amount = ri(1, 2_000_000);
+
+      // Amounts people carry alone. Deliberately allowed to overshoot the expense
+      // sometimes: that is wrong as an intention, but the arithmetic still has to
+      // add up to the bill exactly rather than invent or lose a satang.
+      const extras = {};
+      if (rnd() < 0.3) {
+        const ceiling = rnd() < 0.15 ? amount : Math.floor(amount / bearerIds.length);
+        for (const id of bearerIds) if (rnd() < 0.6) extras[id] = ri(0, Math.max(1, ceiling));
+      }
+
       items.push({
         id: `i${k}`,
         name: `item${k}`,
-        amount: ri(1, 2_000_000),
+        amount,
         payerId: people[ri(0, nPeople - 1)].id,
         bearerIds,
         weights,
+        extras,
       });
     }
 
@@ -155,7 +169,7 @@ section('computeSplit — randomised parties');
 
   bad
     ? fail(`${bad} party violations`)
-    : ok(`${runs} random parties: shares == spent, balances cancel, <= n-1 transfers (max ${maxTransfers}), everyone ends on zero`);
+    : ok(`${runs} random parties, weights and personal amounts mixed in: shares == spent, balances cancel, <= n-1 transfers (max ${maxTransfers}), everyone ends on zero`);
 }
 
 section('computeSplit — edge cases a real user can reach');
@@ -208,6 +222,138 @@ section('computeSplit — edge cases a real user can reach');
   treat.owed.p1 === 66000 && treat.net.p0 === 66000 && treat.net.p1 === -66000 && treat.net.p2 === 0
     ? ok('one person treats: payer is reimbursed in full, bystander untouched')
     : fail('treat case misbehaves');
+}
+
+
+section('one expense — what a person had to themselves, before shares');
+{
+  const terms = (list) => list.map(([weight, extra]) => ({ weight, extra }));
+
+  // 1. the case this was asked for: karaoke 300, four sharing, A ate 20 of snacks
+  const kara = shareOut(30000, terms([[1, 2000], [1, 0], [1, 0], [1, 0]]));
+  kara.parts.join(',') === '9000,7000,7000,7000' && kara.rest === 28000 && kara.extraTotal === 2000
+    ? ok('karaoke 300 with A’s own 20: A pays 90, the other three 70 — 280 was what got divided')
+    : fail(`karaoke case produced ${JSON.stringify(kara)}`);
+
+  // 2. a multiplier and a personal amount at the same time
+  const both = shareOut(30000, terms([[2, 2000], [1, 0], [1, 0]]));
+  both.parts.join(',') === '16000,7000,7000' && both.parts.reduce((a, b) => a + b, 0) === 30000
+    ? ok('A with ×2 and 20 of their own: 20 first, then twice the share of the remaining 280')
+    : fail(`weights plus personal amounts produced ${JSON.stringify(both)}`);
+
+  // 3. a remainder that will not divide cleanly still lands on the exact bill
+  const odd = shareOut(10000, terms([[1, 100], [1, 0], [1, 0], [1, 0]]));
+  const shared = odd.shared;
+  odd.parts.reduce((a, b) => a + b, 0) === 10000 &&
+  Math.max(...shared) - Math.min(...shared) <= 1
+    ? ok('99 split four ways after a personal 1: the parts still add back to exactly 100')
+    : fail(`uneven remainder produced ${JSON.stringify(odd)}`);
+
+  // 4. the invariant, over every combination worth trying
+  let bad = 0;
+  let cases = 0;
+  for (let amount = 0; amount <= 3000; amount += 37) {
+    for (let own = 0; own <= 3500; own += 53) {
+      for (let n = 1; n <= 5; n++) {
+        const list = Array.from({ length: n }, (_, i) => ({ weight: (i % 3) + 1, extra: i === 0 ? own : 0 }));
+        const out = shareOut(amount, list);
+        cases++;
+        if (out.parts.reduce((a, b) => a + b, 0) !== amount) bad++;
+        if (out.extraTotal !== own) bad++;
+        if (out.rest !== amount - own) bad++;
+      }
+    }
+  }
+  bad
+    ? fail(`${bad} personal-amount violations`)
+    : ok(`${cases.toLocaleString('en-US')} divisions with a personal amount: the parts add up to the expense, exactly, every time`);
+
+  // 5. junk cannot make money appear
+  const junk = shareOut(30000, [
+    { weight: NaN, extra: NaN },
+    { weight: -4, extra: -500 },
+    { weight: Infinity, extra: Infinity },
+    { weight: 1, extra: '20' },
+  ]);
+  junk.parts.reduce((a, b) => a + b, 0) === 30000 && junk.extraTotal === 0
+    ? ok('nonsense weights and personal amounts read as one share and nothing of their own')
+    : fail(`junk terms produced ${JSON.stringify(junk)}`);
+
+  // 6. more set aside than the expense: wrong, but still exact
+  const over = shareOut(30000, terms([[1, 20000], [1, 20000]]));
+  over.parts.reduce((a, b) => a + b, 0) === 30000 && over.rest === -10000
+    ? ok('personal amounts over the expense stay exact — the shortfall is shared as a credit')
+    : fail(`overshoot produced ${JSON.stringify(over)}`);
+
+  // 7. with nobody carrying anything alone, nothing changes at all
+  let same = true;
+  for (let amount = 0; amount <= 500; amount++) {
+    const plain = allocate(amount, [1, 2, 3]);
+    const viaTerms = shareOut(amount, terms([[1, 0], [2, 0], [3, 0]])).parts;
+    if (plain.join(',') !== viaTerms.join(',')) same = false;
+  }
+  same
+    ? ok('an expense with no personal amounts divides exactly as it always did')
+    : fail('adding the feature changed an ordinary split');
+}
+
+section('personal amounts — through the whole engine');
+{
+  const people = [
+    { id: 'p_a', name: 'A' },
+    { id: 'p_b', name: 'B' },
+    { id: 'p_c', name: 'C' },
+    { id: 'p_d', name: 'D' },
+  ];
+  const all = people.map((p) => p.id);
+  const party = (over) => ({
+    title: 'karaoke',
+    currencyCode: 'THB',
+    people,
+    items: [{
+      id: 'i1', name: 'Karaoke room', amount: 30000, payerId: 'p_b',
+      bearerIds: all, weights: {}, extras: { p_a: 2000 }, ...over,
+    }],
+  });
+
+  const r = computeSplit(party());
+  r.owed.p_a === 9000 && r.owed.p_b === 7000 && r.owed.p_c === 7000 && r.owed.p_d === 7000
+    ? ok('B paid the 300: A owes 90 and everyone else 70')
+    : fail(`shares came out ${JSON.stringify(r.owed)}`);
+
+  r.net.p_b === 23000 && r.transfers.every((t) => t.toId === 'p_b') &&
+  r.transfers.reduce((a, t) => a + t.amount, 0) === 23000
+    ? ok('B gets back exactly the 230 they are out of pocket')
+    : fail(`settlement came out ${JSON.stringify(r.transfers)}`);
+
+  r.checks.every((c) => c.ok) && r.balanced
+    ? ok('every automatic check passes with a personal amount in play')
+    : fail('a check failed on an expense with a personal amount');
+
+  const b = r.breakdowns[0];
+  b.extraTotal === 2000 && b.rest === 28000 && b.extras.p_a === 2000 && !b.even
+    ? ok('the proof can say what came off the top and what was left to divide')
+    : fail(`breakdown came out ${JSON.stringify({ e: b.extraTotal, r: b.rest, even: b.even })}`);
+
+  // an amount left behind for somebody who is no longer sharing it
+  const stale = computeSplit(party({ bearerIds: ['p_b', 'p_c'], extras: { p_a: 2000 } }));
+  stale.owed.p_a === 0 && stale.owed.p_b === 15000 && stale.owed.p_c === 15000
+    ? ok('an amount left over for someone since taken off the expense is ignored, not charged')
+    : fail(`stale personal amount produced ${JSON.stringify(stale.owed)}`);
+
+  // the same person named twice must not be charged their own amount twice
+  const dupe = computeSplit(party({ bearerIds: ['p_a', 'p_a', 'p_b'], extras: { p_a: 2000 } }));
+  dupe.owed.p_a === 16000 && dupe.owed.p_b === 14000 &&
+  dupe.owed.p_a + dupe.owed.p_b === 30000
+    ? ok('a repeated bearer is collapsed first, so their own amount is counted once')
+    : fail(`duplicate bearer produced ${JSON.stringify(dupe.owed)}`);
+
+  // setting aside more than the expense is flagged, and still adds up
+  const over = computeSplit(party({ extras: { p_a: 20000, p_b: 20000 } }));
+  const sumOwed = all.reduce((a, id) => a + (over.owed[id] ?? 0), 0);
+  sumOwed === 30000 && over.problems.some((m) => m.includes('more than the expense'))
+    ? ok('setting aside more than the expense is called out, and the total still ties to the bill')
+    : fail(`overshoot produced ${sumOwed} with problems ${JSON.stringify(over.problems)}`);
 }
 
 section('money — parsing, display, currency changes');
@@ -290,6 +436,33 @@ section('share links — round trip');
   legacy && legacy.party.people.length === 2 && legacy.party.items[0].amount === 20000 && legacy.sharedBy === null
     ? ok('a link from the previous version still opens')
     : fail('backwards compatibility broken');
+
+  // Personal amounts have to survive the trip, or a link would quietly re-split
+  // an expense somebody had already settled the shape of.
+  {
+    const plain = referenceParty();
+    const withOwn = referenceParty();
+    // M had 20 of the karaoke room to themselves.
+    withOwn.items[3] = { ...withOwn.items[3], extras: { p_m: 2000 } };
+
+    const back = decodeParty(encodeParty(withOwn));
+    const before = computeSplit(withOwn);
+    const after = back && computeSplit(back.party);
+
+    after && withOwn.people.every((p, i) => before.owed[p.id] === after.owed[back.party.people[i].id])
+      ? ok('an amount somebody had to themselves survives the link intact')
+      : fail('a personal amount was lost or changed in a share link');
+
+    after && after.owed[back.party.people[1].id] !== computeSplit(plain).owed[plain.people[1].id]
+      ? ok('and it is actually doing something — the shares differ from the same party without it')
+      : fail('the personal amount made no difference, so the test proves nothing');
+
+    // An ordinary split must not pay for the feature in link length.
+    const rows = JSON.parse(Buffer.from(encodeParty(plain), 'base64url').toString()).i;
+    rows.every((row) => row.length === 5)
+      ? ok('a link only carries personal amounts when there are some to carry')
+      : fail(`an ordinary party packed ${JSON.stringify(rows.map((r) => r.length))}`);
+  }
 }
 
 section('history and presets');
@@ -574,6 +747,35 @@ section('cloud sync — turning edits into row writes');
   mRows.size > 0 && fRows.size > 0 && overlap.length === 0
     ? ok('two people editing different expenses write to disjoint rows — no silent overwrite')
     : fail(`edits collided on ${overlap.join(', ')}`);
+
+
+  // A changed personal amount is a change like any other: it must travel, and it
+  // must not drag the whole expense along with it.
+  {
+    const withOwn = {
+      ...base,
+      items: base.items.map((it) =>
+        it.id === 'i_kara1' ? { ...it, extras: { p_m: 2000 } } : it,
+      ),
+    };
+
+    const ops = diffParty(base, withOwn);
+    const shareOps = ops.filter((o) => o.table === 'expense_shares');
+    ops.every((o) => o.table === 'expense_shares') && shareOps.length === 1 &&
+    shareOps[0].expenseId === 'i_kara1' &&
+    shareOps[0].shares.find((sh) => sh.personId === 'p_m').extra === 2000
+      ? ok('setting an amount for one person rewrites that expense’s shares and nothing else')
+      : fail(`personal amount emitted ${JSON.stringify(tables(ops))}`);
+
+    diffParty(withOwn, withOwn).length === 0
+      ? ok('an unchanged personal amount is not resent')
+      : fail('an unchanged personal amount was resent');
+
+    const cleared = diffParty(withOwn, base).filter((o) => o.table === 'expense_shares');
+    cleared.length === 1 && cleared[0].shares.every((sh) => sh.extra === 0)
+      ? ok('clearing it writes the shares back with nothing set aside')
+      : fail(`clearing emitted ${JSON.stringify(cleared)}`);
+  }
 
   // adding a person, and removing one
   const added = { ...base, people: [...base.people, { id: 'p_new', name: 'Z' }] };

@@ -20,6 +20,9 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
+  // Android shrinks the page for the keyboard rather than drawing over it, which
+  // is what keeps a sheet's buttons reachable while typing.
+  interactiveWidget: 'resizes-content',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

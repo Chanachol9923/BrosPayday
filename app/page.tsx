@@ -6,6 +6,7 @@ import { CURRENCIES, currencyOf } from '@/lib/types';
 import { computeSplit } from '@/lib/split';
 import { formatMoney, rescaleAmount, uid } from '@/lib/format';
 import { hueForIndex } from '@/lib/colors';
+import { useKeyboardInset } from '@/lib/keyboard';
 import {
   addPhotoMeta,
   addPreset,
@@ -129,8 +130,11 @@ export default function Page() {
   const [shareLoading, setShareLoading] = useState(false);
   const [cloudLinks, setCloudLinks] = useState<ShareLink[]>([]);
   const [signInFailed, setSignInFailed] = useState(false);
+  const [badCode, setBadCode] = useState(false);
   const sharedBase = useRef<Party | null>(null);
   const didLoad = useRef(false);
+
+  useKeyboardInset();
 
   const cloud = useCloud(store, setStore);
   /** Cloud is in charge of the data — the local store is not persisted in this mode. */
@@ -166,7 +170,9 @@ export default function Page() {
       void readSharedParty(token)
         .then((found) => {
           if (!found) {
-            setToast('That link is no longer valid');
+            // The gate replaces the page from here, so a toast would never be
+            // seen; the message has to travel to the screen that actually renders.
+            setBadCode(true);
             return;
           }
           setShareMode({ token, role: found.role });
@@ -743,11 +749,12 @@ export default function Page() {
     }
     return (
       <CloudGate
-        error={cloud.error}
+        error={badCode ? 'That code does not open anything — check it and try again.' : cloud.error}
         signInFailed={signInFailed}
         origin={typeof window === 'undefined' ? '' : window.location.origin}
         onSignIn={() => {
           setSignInFailed(false);
+          setBadCode(false);
           void cloud.signIn();
         }}
         onStayLocal={chooseLocal}

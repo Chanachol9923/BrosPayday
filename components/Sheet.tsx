@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { X } from './Icons';
 
 /**
@@ -20,6 +20,8 @@ export function Sheet({
   footer?: React.ReactNode;
   headerRight?: React.ReactNode;
 }) {
+  const bodyRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     document.body.classList.add('is-locked');
     const onKey = (e: KeyboardEvent) => {
@@ -31,6 +33,25 @@ export function Sheet({
       window.removeEventListener('keydown', onKey);
     };
   }, [onClose]);
+
+  // Shrinking the sheet is not enough on its own: a field low down can still end
+  // up behind the keyboard, so bring whatever was tapped into view once the
+  // keyboard has finished animating in.
+  useEffect(() => {
+    const body = bodyRef.current;
+    if (!body) return;
+
+    const onFocus = (e: FocusEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (!el || !/^(INPUT|TEXTAREA|SELECT)$/.test(el.tagName)) return;
+      window.setTimeout(() => {
+        el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }, 280);
+    };
+
+    body.addEventListener('focusin', onFocus);
+    return () => body.removeEventListener('focusin', onFocus);
+  }, []);
 
   return (
     <div
@@ -50,7 +71,9 @@ export function Sheet({
           </button>
         </div>
 
-        <div className="sheet-body">{children}</div>
+        <div className="sheet-body" ref={bodyRef}>
+          {children}
+        </div>
 
         {footer && <div className="sheet-foot">{footer}</div>}
       </div>

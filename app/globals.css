@@ -2,6 +2,10 @@
 :root {
   color-scheme: dark;
 
+  /* How much of the viewport the on-screen keyboard is covering. Set from
+     lib/keyboard.ts; stays 0 on desktop and on browsers that reflow instead. */
+  --kb: 0px;
+
   --bg: #090a0e;
   --bg-glow: #12141c;
   --surface: #14161d;
@@ -653,7 +657,8 @@ table.grid .cellname { display: flex; align-items: center; gap: 7px; }
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 0;
+  bottom: var(--kb, 0px);
+  transition: bottom 0.18s ease;
   z-index: 45;
   padding: 10px 14px calc(10px + env(safe-area-inset-bottom));
   background: linear-gradient(to top, var(--bg) 58%, transparent);
@@ -666,6 +671,7 @@ table.grid .cellname { display: flex; align-items: center; gap: 7px; }
 .overlay {
   position: fixed;
   inset: 0;
+  bottom: var(--kb, 0px);
   z-index: 100;
   background: rgb(4 5 8 / 0.68);
   backdrop-filter: blur(3px);
@@ -680,7 +686,8 @@ table.grid .cellname { display: flex; align-items: center; gap: 7px; }
 .sheet {
   width: 100%;
   max-width: 560px;
-  max-height: 94dvh;
+  /* --kb is what the keyboard covers on browsers that do not reflow for it. */
+  max-height: calc(94dvh - var(--kb, 0px));
   display: flex;
   flex-direction: column;
   background: var(--bg-glow);
@@ -864,7 +871,7 @@ table.grid .cellname { display: flex; align-items: center; gap: 7px; }
 .toast {
   position: fixed;
   left: 50%;
-  bottom: calc(84px + env(safe-area-inset-bottom));
+  bottom: calc(84px + var(--kb, 0px) + env(safe-area-inset-bottom));
   transform: translateX(-50%);
   z-index: 200;
   padding: 10px 16px;

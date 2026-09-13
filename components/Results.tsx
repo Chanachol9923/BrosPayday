@@ -1,13 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import type { Person } from '@/lib/types';
+import type { Payee, Person } from '@/lib/types';
 import type { SplitResult } from '@/lib/split';
 import { formatMoney } from '@/lib/format';
 import { Avatar } from './Avatar';
-import { Arrow, Check, Copy, Scale, Warn } from './Icons';
+import { Arrow, Check, Copy, Qr, Scale, Warn } from './Icons';
 
-const sig = (t: { fromId: string; toId: string; amount: number }) =>
+/** Keyed on the numbers too, so a tick falls away the moment the split changes. */
+export const transferKey = (t: { fromId: string; toId: string; amount: number }) =>
   `${t.fromId}>${t.toId}:${t.amount}`;
 
 export function Results({
@@ -16,15 +16,21 @@ export function Results({
   currencyCode,
   hueOf,
   onCopy,
+  settled,
+  onToggleSettled,
+  payeeFor,
+  onOpenPay,
 }: {
   result: SplitResult;
   people: Person[];
   currencyCode: string;
   hueOf: (id: string) => number;
   onCopy: () => void;
+  settled: string[];
+  onToggleSettled: (key: string) => void;
+  payeeFor: (personId: string) => Payee | null;
+  onOpenPay: (transfer: { fromId: string; toId: string; amount: number }) => void;
 }) {
-  /** Keyed by transfer signature, so ticks fall away the moment the numbers change. */
-  const [done, setDone] = useState<string[]>([]);
   const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? '?';
   const money = (v: number) => formatMoney(v, currencyCode);
 
@@ -92,40 +98,55 @@ export function Results({
             <>
               <div className="settle-list">
                 {result.transfers.map((t) => {
-                  const key = sig(t);
-                  const isDone = done.includes(key);
+                  const key = transferKey(t);
+                  const isDone = settled.includes(key);
+                  const canPay = !!payeeFor(t.toId);
+
                   return (
-                    <button
-                      type="button"
-                      key={key}
-                      className={`settle-row${isDone ? ' done' : ''}`}
-                      onClick={() =>
-                        setDone((prev) =>
-                          prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key],
-                        )
-                      }
-                      aria-pressed={isDone}
-                    >
-                      <span className="tick">
+                    <div key={key} className={`settle-row${isDone ? ' done' : ''}`}>
+                      <button
+                        type="button"
+                        className="tick"
+                        onClick={() => onToggleSettled(key)}
+                        aria-pressed={isDone}
+                        aria-label={
+                          isDone
+                            ? `Mark ${nameOf(t.fromId)} to ${nameOf(t.toId)} as not sent`
+                            : `Mark ${nameOf(t.fromId)} to ${nameOf(t.toId)} as sent`
+                        }
+                      >
                         <Check size={13} />
-                      </span>
-                      <span className="settle-who">
-                        <Avatar name={nameOf(t.fromId)} hue={hueOf(t.fromId)} size="xs" />
-                        <span className="nm">{nameOf(t.fromId)}</span>
-                        <span className="settle-arrow">
-                          <Arrow size={16} />
+                      </button>
+
+                      <button
+                        type="button"
+                        className="settle-body"
+                        onClick={() => onOpenPay(t)}
+                        aria-label={`Pay ${nameOf(t.toId)} ${money(t.amount)}`}
+                      >
+                        <span className="settle-who">
+                          <Avatar name={nameOf(t.fromId)} hue={hueOf(t.fromId)} size="xs" />
+                          <span className="nm">{nameOf(t.fromId)}</span>
+                          <span className="settle-arrow">
+                            <Arrow size={16} />
+                          </span>
+                          <Avatar name={nameOf(t.toId)} hue={hueOf(t.toId)} size="xs" />
+                          <span className="nm">{nameOf(t.toId)}</span>
                         </span>
-                        <Avatar name={nameOf(t.toId)} hue={hueOf(t.toId)} size="xs" />
-                        <span className="nm">{nameOf(t.toId)}</span>
-                      </span>
-                      <span className="settle-amount num">{money(t.amount)}</span>
-                    </button>
+                        {canPay && (
+                          <span className="settle-qr" aria-label="has a payment QR">
+                            <Qr size={15} />
+                          </span>
+                        )}
+                        <span className="settle-amount num">{money(t.amount)}</span>
+                      </button>
+                    </div>
                   );
                 })}
               </div>
               <p className="hint" style={{ marginTop: 10 }}>
                 {result.transfers.length} payment{result.transfers.length === 1 ? '' : 's'} clears
-                everything. Tap one once it&rsquo;s been sent.
+                everything. Tap a row to pay, or the circle to tick it off.
               </p>
             </>
           )}

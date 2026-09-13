@@ -3,6 +3,18 @@ export type Person = {
   name: string;
 };
 
+/** A photo attached to a party — a receipt snapped while shopping, usually. */
+export type PhotoMeta = {
+  id: string;
+  /** Optionally tied to one expense; null means it is just on the party. */
+  expenseId: string | null;
+  w: number;
+  h: number;
+  bytes: number;
+  addedAt: number;
+  note?: string;
+};
+
 export type Item = {
   id: string;
   name: string;
@@ -27,7 +39,22 @@ export type Party = EventState & {
   id: string;
   /** The day the party happened, as YYYY-MM-DD in local time. */
   date: string;
+  photos: PhotoMeta[];
   createdAt: number;
+  updatedAt: number;
+};
+
+/**
+ * How to pay one person back. Kept per profile and matched on name rather than
+ * on a party's person id, so setting it once carries across every future party.
+ * Both fields are optional — nobody has to provide anything.
+ */
+export type Payee = {
+  name: string;
+  /** Photo id of a QR screenshot they pasted in. */
+  qrPhotoId?: string | null;
+  /** A PromptPay phone/ID number, which lets us build a QR with the amount in it. */
+  promptPayId?: string | null;
   updatedAt: number;
 };
 
@@ -62,6 +89,8 @@ export type Store = {
   history: Record<string, Party[]>;
   /** profileId -> saved templates */
   presets: Record<string, Preset[]>;
+  /** profileId -> how to pay each person back, keyed by lowercased name */
+  payees: Record<string, Record<string, Payee>>;
 };
 
 export type Currency = {

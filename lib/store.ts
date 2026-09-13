@@ -1,4 +1,4 @@
-import type { Party, Person, Preset, Profile, Store } from './types';
+import type { Party, Payee, Person, PhotoMeta, Preset, Profile, Store } from './types';
 import { uid } from './format';
 import { exampleState } from './example';
 
@@ -55,6 +55,7 @@ export function newParty(currencyCode = 'THB'): Party {
     currencyCode,
     people: [],
     items: [],
+    photos: [],
     createdAt: now,
     updatedAt: now,
   };
@@ -63,7 +64,7 @@ export function newParty(currencyCode = 'THB'): Party {
 export function sampleParty(): Party {
   const base = exampleState();
   const now = Date.now();
-  return { ...base, id: uid('party'), date: todayISO(), createdAt: now, updatedAt: now };
+  return { ...base, id: uid('party'), date: todayISO(), photos: [], createdAt: now, updatedAt: now };
 }
 
 /** A party is worth archiving once money has been entered. */
@@ -86,6 +87,7 @@ export function emptyStore(): Store {
     current: { [profile.id]: newParty() },
     history: { [profile.id]: [] },
     presets: { [profile.id]: [] },
+    payees: { [profile.id]: {} },
   };
 }
 
@@ -97,10 +99,17 @@ function coerce(raw: unknown): Store | null {
   s.current = s.current ?? {};
   s.history = s.history ?? {};
   s.presets = s.presets ?? {};
+  s.payees = s.payees ?? {};
   for (const p of s.profiles) {
     if (!s.current[p.id]) s.current[p.id] = newParty();
     if (!Array.isArray(s.history[p.id])) s.history[p.id] = [];
     if (!Array.isArray(s.presets[p.id])) s.presets[p.id] = [];
+    if (!s.payees[p.id] || typeof s.payees[p.id] !== 'object') s.payees[p.id] = {};
+
+    // Parties saved before photos existed have no array to push into.
+    for (const party of [s.current[p.id], ...s.history[p.id]]) {
+      if (party && !Array.isArray(party.photos)) party.photos = [];
+    }
   }
   return s;
 }
@@ -126,6 +135,7 @@ function migrateLegacy(): Store | null {
         currencyCode: old.currencyCode || 'THB',
         people: old.people,
         items: old.items,
+        photos: [],
         createdAt: now,
         updatedAt: now,
       },
@@ -278,6 +288,7 @@ export function addProfile(store: Store, name: string): Store {
     current: { ...store.current, [profile.id]: fresh },
     history: { ...store.history, [profile.id]: [] },
     presets: { ...store.presets, [profile.id]: [] },
+    payees: { ...store.payees, [profile.id]: {} },
   };
 }
 
@@ -295,6 +306,7 @@ export function deleteProfile(store: Store, profileId: string): Store {
   const { [profileId]: _c, ...current } = store.current;
   const { [profileId]: _h, ...history } = store.history;
   const { [profileId]: _p, ...presets } = store.presets;
+  const { [profileId]: _y, ...payees } = store.payees;
 
   return {
     ...store,
@@ -303,6 +315,7 @@ export function deleteProfile(store: Store, profileId: string): Store {
     current,
     history,
     presets,
+    payees,
   };
 }
 
@@ -417,6 +430,7 @@ export function placeholderStore(): Store {
     currencyCode: 'THB',
     people: [],
     items: [],
+    photos: [],
     createdAt: 0,
     updatedAt: 0,
   };
@@ -427,5 +441,95 @@ export function placeholderStore(): Store {
     current: { [pid]: party },
     history: { [pid]: [] },
     presets: { [pid]: [] },
+    payees: { [pid]: {} },
   };
+}
+
+/* ── payees: how to pay each person back ─────────────────────────── */
+
+const payeeKey = (name: string) => name.trim().toLowerCase();
+
+export function payeeFor(store: Store, profileId: string, name: string): Payee | null {
+  const key = payeeKey(name);
+  if (!key) return null;
+  return store.payees[profileId]?.[key] ?? null;
+}
+
+export function hasPaymentDetails(payee: Payee | null): boolean {
+  return !!payee && (!!payee.qrPhotoId || !!payee.promptPayId);
+}
+
+export function setPayee(
+  store: Store,
+  profileId: string,
+  name: string,
+  patch: Partial<Omit<Payee, 'name' | 'updatedAt'>>,
+): Store {
+  const key = payeeKey(name);
+  if (!key) return store;
+
+  const existing = store.payees[profileId]?.[key];
+  const next: Payee = {
+    name: name.trim(),
+    qrPhotoId: existing?.qrPhotoId ?? null,
+    promptPayId: existing?.promptPayId ?? null,
+    ...patch,
+    updatedAt: Date.now(),
+  };
+
+  const book = { ...(store.payees[profileId] ?? {}) };
+  if (!next.qrPhotoId && !next.promptPayId) {
+    delete book[key];
+  } else {
+    book[key] = next;
+  }
+
+  return { ...store, payees: { ...store.payees, [profileId]: book } };
+}
+
+/* ── photos ──────────────────────────────────────────────────────── */
+
+export function addPhotoMeta(party: Party, meta: PhotoMeta): Party {
+  return { ...party, photos: [...(party.photos ?? []), meta], updatedAt: Date.now() };
+}
+
+export function removePhotoMeta(party: Party, photoId: string): Party {
+  return {
+    ...party,
+    photos: (party.photos ?? []).filter((p) => p.id !== photoId),
+    updatedAt: Date.now(),
+  };
+}
+
+export function linkPhotoToExpense(party: Party, photoId: string, expenseId: string | null): Party {
+  return {
+    ...party,
+    photos: (party.photos ?? []).map((p) => (p.id === photoId ? { ...p, expenseId } : p)),
+    updatedAt: Date.now(),
+  };
+}
+
+export function photosForExpense(party: Party, expenseId: string): PhotoMeta[] {
+  return (party.photos ?? []).filter((p) => p.expenseId === expenseId);
+}
+
+/**
+ * Every photo id the store still points at — party photos across all profiles and
+ * histories, plus the QR images in every address book. Anything else in IndexedDB
+ * is an orphan and can go.
+ */
+export function referencedPhotoIds(store: Store): Set<string> {
+  const ids = new Set<string>();
+
+  for (const profile of store.profiles) {
+    const parties = [store.current[profile.id], ...(store.history[profile.id] ?? [])];
+    for (const party of parties) {
+      for (const photo of party?.photos ?? []) ids.add(photo.id);
+    }
+    for (const payee of Object.values(store.payees[profile.id] ?? {})) {
+      if (payee.qrPhotoId) ids.add(payee.qrPhotoId);
+    }
+  }
+
+  return ids;
 }

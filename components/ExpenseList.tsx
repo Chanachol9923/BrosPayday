@@ -3,7 +3,7 @@
 import type { Item, Person } from '@/lib/types';
 import { formatMoney } from '@/lib/format';
 import { Avatar, AvatarStack } from './Avatar';
-import { Plus, Receipt, Warn } from './Icons';
+import { Camera, Plus, Receipt, Warn } from './Icons';
 
 export function ExpenseList({
   items,
@@ -14,6 +14,7 @@ export function ExpenseList({
   onAdd,
   canAdd,
   suggestions,
+  photoCountFor,
 }: {
   items: Item[];
   people: Person[];
@@ -24,6 +25,7 @@ export function ExpenseList({
   canAdd: boolean;
   /** Usual expense names from an applied preset, offered as one-tap starters. */
   suggestions: string[];
+  photoCountFor: (expenseId: string) => number;
 }) {
   const nameOf = (id: string | null) => people.find((p) => p.id === id)?.name ?? '';
   const total = items.reduce((a, i) => a + i.amount, 0);
@@ -82,6 +84,15 @@ export function ExpenseList({
                             ? 'everyone'
                             : `${bearers.length} sharing`}
                       </span>
+                      {photoCountFor(item.id) > 0 && (
+                        <>
+                          <span className="dot">·</span>
+                          <span className="exp-photos">
+                            <Camera size={11} />
+                            {photoCountFor(item.id)}
+                          </span>
+                        </>
+                      )}
                     </span>
                   </span>
 

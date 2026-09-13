@@ -13,8 +13,12 @@ const { parseAmount, formatMoney, rescaleAmount } = require('../.verify/format.j
 const { encodeParty, decodeParty } = require('../.verify/share.js');
 const {
   applyPreset, archiveCurrent, deleteFromHistory, emptyStore, newParty,
-  presetFromParty, reopenFromHistory, sampleParty, updateCurrent,
+  presetFromParty, referencedPhotoIds, reopenFromHistory, sampleParty,
+  setPayee, payeeFor, hasPaymentDetails, addPhotoMeta, updateCurrent,
 } = require('../.verify/store.js');
+const {
+  buildPromptPayPayload, crc16, parsePromptPayId, parseTlv, verifyPromptPayPayload,
+} = require('../.verify/promptpay.js');
 
 let fails = 0;
 const fail = (msg) => {
@@ -423,6 +427,113 @@ section('what the screen actually shows');
   ])
     ? ok('the chat summary lists the right payments in the right order')
     : fail(`settlement text drifted: ${settlement.join(' / ')}`);
+}
+
+section('PromptPay QR payloads');
+{
+  // The published check value for CRC-16/CCITT-FALSE. If this drifts, every QR is wrong.
+  crc16('123456789') === '29B1'
+    ? ok('CRC-16/CCITT-FALSE matches its published check value (29B1)')
+    : fail(`crc16("123456789") = ${crc16('123456789')}, expected 29B1`);
+
+  const ids = [
+    ['0812345678', 'mobile', '0066812345678'],
+    ['081-234-5678', 'mobile', '0066812345678'],
+    ['812345678', 'mobile', '0066812345678'],
+    ['1234567890123', 'nationalId', '1234567890123'],
+    ['004000000001234', 'ewallet', '004000000001234'],
+  ];
+  let badIds = 0;
+  for (const [raw, kind, value] of ids) {
+    const got = parsePromptPayId(raw);
+    if (!got || got.kind !== kind || got.value !== value) {
+      fail(`parsePromptPayId(${JSON.stringify(raw)}) = ${JSON.stringify(got)}`);
+      badIds++;
+    }
+  }
+  [' ', '12345', 'abcdefghij'].forEach((raw) => {
+    if (parsePromptPayId(raw) !== null) { fail(`${JSON.stringify(raw)} should not parse`); badIds++; }
+  });
+  if (!badIds) ok('8 id forms: phone, ID and e-wallet recognised, junk rejected');
+
+  const noAmount = buildPromptPayPayload('0812345678');
+  const withAmount = buildPromptPayPayload('0812345678', 124000);
+
+  noAmount === '00020101021129370016A0000006770101110113006681234567853037645802TH6304823E'
+    ? ok('a reusable code is byte-for-byte what it should be')
+    : fail(`static payload drifted: ${noAmount}`);
+
+  withAmount === '00020101021229370016A00000067701011101130066812345678530376454071240.005802TH63040BB6'
+    ? ok('a one-time code for 1,240 is byte-for-byte what it should be')
+    : fail(`dynamic payload drifted: ${withAmount}`);
+
+  const tags = parseTlv(withAmount);
+  const merchant = parseTlv(tags['29'] ?? '');
+  tags['01'] === '12' && tags['53'] === '764' && tags['58'] === 'TH' && tags['54'] === '1240.00' &&
+  merchant['00'] === 'A000000677010111' && merchant['01'] === '0066812345678'
+    ? ok('it says: one-time, Thai baht, Thailand, 1240.00, to that PromptPay number')
+    : fail(`payload fields wrong: ${JSON.stringify(tags)}`);
+
+  parseTlv(noAmount)['01'] === '11' && parseTlv(noAmount)['54'] === undefined
+    ? ok('a code with no amount is marked reusable and carries no amount tag')
+    : fail('static payload is not marked reusable');
+
+  verifyPromptPayPayload(withAmount) && verifyPromptPayPayload(noAmount)
+    ? ok('both payloads pass their own CRC check')
+    : fail('a generated payload fails its own CRC');
+
+  verifyPromptPayPayload(withAmount.slice(0, -6) + 'X' + withAmount.slice(-5))
+    ? fail('a tampered payload still passed the CRC check')
+    : ok('a tampered payload fails the CRC, so a bank app would reject it');
+
+  // A different amount must be a different code — otherwise someone pays the wrong sum.
+  buildPromptPayPayload('0812345678', 78000) !== withAmount
+    ? ok('changing the amount changes the code')
+    : fail('two different amounts produced the same QR');
+
+  buildPromptPayPayload('12345') === null
+    ? ok('an unusable number yields no QR rather than a broken one')
+    : fail('a junk number produced a payload');
+}
+
+section('payment details and photo bookkeeping');
+{
+  const store = emptyStore();
+  const pid = store.activeProfileId;
+
+  const withNumber = setPayee(store, pid, 'Q', { promptPayId: '0812345678' });
+  const found = payeeFor(withNumber, pid, 'q');
+  found && found.promptPayId === '0812345678' && hasPaymentDetails(found)
+    ? ok('payment details are found whatever the case of the name')
+    : fail('payee lookup is case sensitive');
+
+  payeeFor(withNumber, pid, 'Nobody') === null
+    ? ok('someone with no details set returns nothing')
+    : fail('payee lookup invented an entry');
+
+  const cleared = setPayee(withNumber, pid, 'Q', { promptPayId: null });
+  payeeFor(cleared, pid, 'Q') === null
+    ? ok('clearing the last detail removes the entry entirely')
+    : fail('an empty payee entry was left behind');
+
+  const both = setPayee(setPayee(store, pid, 'Q', { promptPayId: '0812345678' }), pid, 'Q', { qrPhotoId: 'qr_1' });
+  const merged = payeeFor(both, pid, 'Q');
+  merged.promptPayId === '0812345678' && merged.qrPhotoId === 'qr_1'
+    ? ok('adding a QR image keeps the number that was already there')
+    : fail('setting one payment field wiped the other');
+
+  // Every referenced blob must be kept; anything else is swept from IndexedDB.
+  const photo = { id: 'ph_1', expenseId: null, w: 10, h: 10, bytes: 100, addedAt: 0 };
+  const withPhotos = updateCurrent(both, pid, (party) => addPhotoMeta(party, photo));
+  const refs = referencedPhotoIds(withPhotos);
+  refs.has('ph_1') && refs.has('qr_1') && refs.size === 2
+    ? ok('party photos and payment QRs both count as still in use')
+    : fail(`referenced ids wrong: ${[...refs].join(', ')}`);
+
+  const dropped = updateCurrent(withPhotos, pid, (party) => ({ ...party, photos: [] }));
+  referencedPhotoIds(dropped).has('ph_1')
+    ? fail('a removed photo is still considered in use')
+    : ok('a removed photo stops being referenced, so its blob can be swept');
 }
 
 console.log(fails === 0 ? '\nALL GREEN\n' : `\n${fails} FAILURE(S)\n`);

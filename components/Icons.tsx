@@ -157,3 +157,27 @@ export const Swap = ({ size = 18 }: P) => (
     <path d="m17 20 3-3-3-3M20 17H9a4 4 0 0 1-4-4" />
   </svg>
 );
+
+export const Camera = ({ size = 18 }: P) => (
+  <svg {...base(size)}>
+    <path d="M3 8.5A1.5 1.5 0 0 1 4.5 7h2.2a1 1 0 0 0 .83-.45l.94-1.4A1 1 0 0 1 9.3 4.7h5.4a1 1 0 0 1 .83.45l.94 1.4a1 1 0 0 0 .83.45h2.2A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5Z" />
+    <circle cx="12" cy="13" r="3.4" />
+  </svg>
+);
+
+export const Qr = ({ size = 18 }: P) => (
+  <svg {...base(size)}>
+    <rect x="3" y="3" width="7" height="7" rx="1" />
+    <rect x="14" y="3" width="7" height="7" rx="1" />
+    <rect x="3" y="14" width="7" height="7" rx="1" />
+    <path d="M14 14h3v3h-3zM21 14v3M21 21h-4M17 21h-3" />
+  </svg>
+);
+
+export const Wallet = ({ size = 18 }: P) => (
+  <svg {...base(size)}>
+    <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H18a1 1 0 0 1 1 1v2" />
+    <rect x="3" y="7.5" width="18" height="12" rx="2.5" />
+    <path d="M16 13.5h2.5" />
+  </svg>
+);

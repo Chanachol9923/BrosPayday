@@ -45,6 +45,41 @@ visit starts blank, one tap puts everybody back. Presets also remember the names
 the expenses you usually have (“Pork”, “Karaoke room”) and offer them as one-tap
 starters. **Amounts are never stored in a preset.**
 
+## Photos
+
+Snap receipts as you shop — as many as you like. Tap a photo later to attach it to an
+expense, or leave it loose as a record of the night.
+
+Photos never touch `localStorage`; a handful of phone snaps would blow past its ~5MB
+quota and take the whole party history with them. Blobs live in **IndexedDB** and the
+party record keeps only small metadata. Every image is re-encoded on the way in: a
+1600px copy you can read a receipt from plus a 240px thumbnail, so a 4MB phone photo
+lands around 250KB. Orphaned blobs are swept on start-up.
+
+Photos are on one device and do not travel in a share link.
+
+## Payment QR
+
+Anybody who is owed money can add a way to be paid back. It is entirely optional, and
+there are two ways:
+
+- **Paste or upload their own QR** — the screenshot from their banking app. Works for
+  any bank or wallet, but a saved QR carries no amount, so the app tells the payer what
+  to type.
+- **Type a PromptPay number** — then BrosPayday builds the QR itself with **the exact
+  amount already in it**, so there is nothing to key in at all.
+
+Either way it is stored against the person's name for that user, so it comes back
+automatically in the next party without being retyped.
+
+Tap a row under *Who pays whom* and the recipient's QR comes up with the amount beside
+it. The payload is the Thai EMVCo standard, built in `lib/promptpay.ts` and pinned
+byte-for-byte by the suite, including the published CRC-16/CCITT-FALSE check value and
+a tampering check. A malformed payload cannot silently misdirect money — a banking app
+validates the CRC before it shows anything, so the failure mode is a QR that will not
+scan. The digits still come from whatever was typed, which is why the app reads the
+number back to you before you save it.
+
 ## Sharing
 
 Press Share and you get a card showing exactly what is about to leave your phone —
@@ -139,6 +174,12 @@ app/
   globals.css       design tokens + every component style
 components/
   Sheet             the one modal shell (bottom sheet / centred dialog)
+  QrCode            inline SVG QR, always on a light plate
+  Photo             async image from IndexedDB
+  PhotoShelf        the receipts grid
+  PhotoViewer       lightbox, attach-to-expense, delete
+  MemberSheet       a member's name and how to pay them
+  PayQrSheet        the QR for one settlement
   PartyHeader       party name and date
   PeoplePanel       add / rename / remove people, preset chips
   ExpenseList       the expense rows and preset starters
@@ -152,7 +193,9 @@ components/
   ImportSheet       preview of an incoming shared party
 lib/
   split.ts          allocate() + computeSplit() + settle()  ← all the maths
-  store.ts          profiles, history, presets, session handling
+  promptpay.ts      Thai EMVCo QR payloads + CRC-16
+  photos.ts         IndexedDB blob store, resizing, orphan sweep
+  store.ts          profiles, history, presets, payees, session handling
   share.ts          the link codec
   types.ts          data model and currency table
   format.ts         money parsing and formatting

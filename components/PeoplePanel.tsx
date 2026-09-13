@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import type { Person, Preset } from '@/lib/types';
 import { Avatar } from './Avatar';
-import { Bookmark, Plus, Users, X } from './Icons';
+import { Bookmark, Plus, Qr, Users, X } from './Icons';
 
 export function PeoplePanel({
   people,
@@ -15,11 +15,15 @@ export function PeoplePanel({
   onRemove,
   onApplyPreset,
   onManagePresets,
+  onOpenMember,
+  hasPayment,
 }: {
   people: Person[];
   presets: Preset[];
   hueOf: (id: string) => number;
   usageOf: (id: string) => number;
+  onOpenMember: (id: string) => void;
+  hasPayment: (id: string) => boolean;
   onAdd: (names: string[]) => void;
   onRename: (id: string, name: string) => void;
   onRemove: (id: string) => void;
@@ -93,7 +97,19 @@ export function PeoplePanel({
           <div className="people-grid">
             {people.map((p) => (
               <span className="person-chip" key={p.id}>
-                <Avatar name={p.name} hue={hueOf(p.id)} />
+                <button
+                  type="button"
+                  className="person-avatar"
+                  onClick={() => onOpenMember(p.id)}
+                  aria-label={`Settings for ${p.name || 'this member'}`}
+                >
+                  <Avatar name={p.name} hue={hueOf(p.id)} />
+                  {hasPayment(p.id) && (
+                    <span className="pay-dot" aria-label="has a payment QR">
+                      <Qr size={9} />
+                    </span>
+                  )}
+                </button>
                 <input
                   className="pname"
                   value={p.name}

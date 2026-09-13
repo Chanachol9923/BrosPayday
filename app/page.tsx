@@ -1,12 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import type { Item, Party, Store } from '@/lib/types';
+import type { Item, Party, Payee, Store } from '@/lib/types';
 import { CURRENCIES, currencyOf } from '@/lib/types';
 import { computeSplit } from '@/lib/split';
 import { formatMoney, rescaleAmount, uid } from '@/lib/format';
 import { hueForIndex } from '@/lib/colors';
 import {
+  addPhotoMeta,
   addPreset,
   addProfile,
   applyPreset,
@@ -14,37 +15,49 @@ import {
   deleteFromHistory,
   deletePreset,
   deleteProfile,
+  hasPaymentDetails,
   isWorthKeeping,
+  linkPhotoToExpense,
   loadStore,
   newParty,
   partyLabel,
+  payeeFor as lookupPayee,
+  photosForExpense,
   placeholderStore,
   presetFromParty,
+  referencedPhotoIds,
   relativeDate,
   renamePreset,
+  removePhotoMeta,
   renameProfile,
   reopenFromHistory,
   sampleParty,
   saveStore,
   saveToHistory,
   setCurrent,
+  setPayee,
   startSession,
   switchProfile,
   updateCurrent,
 } from '@/lib/store';
 import type { SharedParty } from '@/lib/share';
 import { buildShareUrl, readShareHash } from '@/lib/share';
+import { QR_ENCODE, deletePhoto, deletePhotos, savePhoto, sweepOrphans } from '@/lib/photos';
 import { PartyHeader } from '@/components/PartyHeader';
 import { PeoplePanel } from '@/components/PeoplePanel';
 import { ExpenseList } from '@/components/ExpenseList';
 import { ExpenseSheet } from '@/components/ExpenseSheet';
-import { Results } from '@/components/Results';
+import { Results, transferKey } from '@/components/Results';
 import { Proof } from '@/components/Proof';
 import { ProfileSheet } from '@/components/ProfileSheet';
 import { HistorySheet } from '@/components/HistorySheet';
 import { PresetSheet } from '@/components/PresetSheet';
 import { ShareSheet } from '@/components/ShareSheet';
 import { ImportSheet } from '@/components/ImportSheet';
+import { PhotoShelf } from '@/components/PhotoShelf';
+import { PhotoViewer } from '@/components/PhotoViewer';
+import { MemberSheet } from '@/components/MemberSheet';
+import { PayQrSheet } from '@/components/PayQrSheet';
 import { Avatar } from '@/components/Avatar';
 import {
   Bookmark,
@@ -74,6 +87,11 @@ export default function Page() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [isSample, setIsSample] = useState(false);
+  const [settled, setSettled] = useState<string[]>([]);
+  const [memberId, setMemberId] = useState<string | null>(null);
+  const [payFor, setPayFor] = useState<{ fromId: string; toId: string; amount: number } | null>(null);
+  const [photoIndex, setPhotoIndex] = useState<number | null>(null);
+  const [photoBusy, setPhotoBusy] = useState(0);
   const didLoad = useRef(false);
 
   /* ── boot ────────────────────────────────────────────────────── */
@@ -107,6 +125,15 @@ export default function Page() {
   useEffect(() => {
     if (loaded) saveStore(store);
   }, [store, loaded]);
+
+  // Deleting a party or trimming history can strand image blobs in IndexedDB.
+  // One sweep per load keeps them from accumulating forever.
+  useEffect(() => {
+    if (!loaded) return;
+    void sweepOrphans(referencedPhotoIds(store));
+    // deliberately once per load, not on every store change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loaded]);
 
   useEffect(() => {
     if (!toast) return;
@@ -172,6 +199,91 @@ export default function Page() {
         };
       }),
     }));
+
+  /* ── photos ──────────────────────────────────────────────────── */
+  const addPhotos = async (files: File[]) => {
+    setPhotoBusy((n) => n + files.length);
+    for (const file of files) {
+      const id = uid('ph');
+      try {
+        const saved = await savePhoto(file, id);
+        updateParty((p) =>
+          addPhotoMeta(p, {
+            id: saved.id,
+            expenseId: null,
+            w: saved.w,
+            h: saved.h,
+            bytes: saved.bytes,
+            addedAt: saved.addedAt,
+          }),
+        );
+      } catch {
+        setToast('That image could not be saved — storage may be full');
+      } finally {
+        setPhotoBusy((n) => Math.max(0, n - 1));
+      }
+    }
+  };
+
+  const removePhoto = async (photoId: string) => {
+    const remaining = (party.photos ?? []).filter((p) => p.id !== photoId);
+    setPhotoIndex(remaining.length === 0 ? null : (i) => (i === null ? null : Math.min(i, remaining.length - 1)));
+    updateParty((p) => removePhotoMeta(p, photoId));
+    await deletePhoto(photoId).catch(() => undefined);
+  };
+
+  const linkPhoto = (photoId: string, expenseId: string | null) =>
+    updateParty((p) => linkPhotoToExpense(p, photoId, expenseId));
+
+  /* ── payment details ─────────────────────────────────────────── */
+  const payeeForPerson = useCallback(
+    (personId: string): Payee | null => {
+      const person = party.people.find((p) => p.id === personId);
+      if (!person) return null;
+      const found = lookupPayee(store, profileId, person.name);
+      return hasPaymentDetails(found) ? found : null;
+    },
+    [party.people, store, profileId],
+  );
+
+  const setMemberQr = async (personId: string, file: File) => {
+    const person = party.people.find((p) => p.id === personId);
+    if (!person) return;
+
+    const previous = lookupPayee(store, profileId, person.name)?.qrPhotoId ?? null;
+    const id = uid('qr');
+
+    setPhotoBusy((n) => n + 1);
+    try {
+      await savePhoto(file, id, QR_ENCODE);
+      setStore((prev) => setPayee(prev, prev.activeProfileId, person.name, { qrPhotoId: id }));
+      if (previous) await deletePhoto(previous).catch(() => undefined);
+      setToast(`Saved ${person.name}'s QR`);
+    } catch {
+      setToast('That image could not be saved');
+    } finally {
+      setPhotoBusy((n) => Math.max(0, n - 1));
+    }
+  };
+
+  const clearMemberQr = async (personId: string) => {
+    const person = party.people.find((p) => p.id === personId);
+    if (!person) return;
+    const previous = lookupPayee(store, profileId, person.name)?.qrPhotoId ?? null;
+    setStore((prev) => setPayee(prev, prev.activeProfileId, person.name, { qrPhotoId: null }));
+    if (previous) await deletePhoto(previous).catch(() => undefined);
+  };
+
+  const setMemberPromptPay = (personId: string, value: string) => {
+    const person = party.people.find((p) => p.id === personId);
+    if (!person) return;
+    setStore((prev) =>
+      setPayee(prev, prev.activeProfileId, person.name, { promptPayId: value || null }),
+    );
+  };
+
+  const toggleSettled = (key: string) =>
+    setSettled((prev) => (prev.includes(key) ? prev.filter((k) => k !== key) : [...prev, key]));
 
   /**
    * Amounts live in minor units, so moving between a 2-decimal currency and a
@@ -277,6 +389,7 @@ export default function Page() {
 
   const discardParty = () => {
     if (!window.confirm('Delete this party without saving it to history?')) return;
+    void deletePhotos((party.photos ?? []).map((p) => p.id));
     setStore(setCurrent(store, profileId, newParty(party.currencyCode)));
     setSuggestions([]);
     setIsSample(false);
@@ -556,6 +669,8 @@ export default function Page() {
             onRemove={removePerson}
             onApplyPreset={applyPresetById}
             onManagePresets={() => setModal('presets')}
+            onOpenMember={setMemberId}
+            hasPayment={(id) => !!payeeForPerson(id)}
           />
           <ExpenseList
             items={party.items}
@@ -566,6 +681,14 @@ export default function Page() {
             onAdd={openNewExpense}
             canAdd={party.people.length > 0}
             suggestions={suggestions}
+            photoCountFor={(id) => photosForExpense(party, id).length}
+          />
+          <PhotoShelf
+            photos={party.photos ?? []}
+            items={party.items}
+            busy={photoBusy}
+            onAdd={(files) => void addPhotos(files)}
+            onOpen={(id) => setPhotoIndex((party.photos ?? []).findIndex((p) => p.id === id))}
           />
         </div>
 
@@ -576,6 +699,10 @@ export default function Page() {
             currencyCode={party.currencyCode}
             hueOf={hueOf}
             onCopy={copySummary}
+            settled={settled}
+            onToggleSettled={toggleSettled}
+            payeeFor={payeeForPerson}
+            onOpenPay={setPayFor}
           />
           <Proof
             result={result}
@@ -680,6 +807,65 @@ export default function Page() {
           onCopyLink={() => write(shareUrl, 'Link copied')}
           onCopySummary={copySummary}
           onClose={() => setModal(null)}
+        />
+      )}
+
+      {memberId &&
+        (() => {
+          const person = party.people.find((p) => p.id === memberId);
+          if (!person) return null;
+          return (
+            <MemberSheet
+              person={person}
+              hue={hueOf(person.id)}
+              payee={lookupPayee(store, profileId, person.name)}
+              uses={usageOf(person.id)}
+              busy={photoBusy > 0}
+              onRename={(name) => renamePerson(person.id, name)}
+              onSetQrImage={(file) => void setMemberQr(person.id, file)}
+              onClearQrImage={() => void clearMemberQr(person.id)}
+              onSetPromptPay={(value) => setMemberPromptPay(person.id, value)}
+              onRemove={() => {
+                removePerson(person.id);
+                setMemberId(null);
+              }}
+              onClose={() => setMemberId(null)}
+            />
+          );
+        })()}
+
+      {payFor &&
+        (() => {
+          const from = party.people.find((p) => p.id === payFor.fromId);
+          const to = party.people.find((p) => p.id === payFor.toId);
+          if (!from || !to) return null;
+          const key = transferKey(payFor);
+          return (
+            <PayQrSheet
+              from={from}
+              to={to}
+              amount={payFor.amount}
+              currencyCode={party.currencyCode}
+              payee={payeeForPerson(to.id)}
+              hueFrom={hueOf(from.id)}
+              hueTo={hueOf(to.id)}
+              settled={settled.includes(key)}
+              onToggleSettled={() => toggleSettled(key)}
+              onClose={() => setPayFor(null)}
+            />
+          );
+        })()}
+
+      {photoIndex !== null && (party.photos ?? []).length > 0 && (
+        <PhotoViewer
+          photos={party.photos ?? []}
+          index={Math.min(photoIndex, (party.photos ?? []).length - 1)}
+          items={party.items}
+          currencyCode={party.currencyCode}
+          onIndex={setPhotoIndex}
+          onLink={linkPhoto}
+          onDelete={(id) => void removePhoto(id)}
+          onClose={() => setPhotoIndex(null)}
         />
       )}
 

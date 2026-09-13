@@ -20,10 +20,15 @@ function GoogleMark() {
  */
 export function CloudGate({
   error,
+  signInFailed,
+  origin,
   onSignIn,
   onStayLocal,
 }: {
   error: string | null;
+  /** True when Google sent someone back but the session could not be made. */
+  signInFailed?: boolean;
+  origin: string;
   onSignIn: () => void;
   onStayLocal: () => void;
 }) {
@@ -56,6 +61,22 @@ export function CloudGate({
           Staying local works exactly as before — nothing is uploaded, and you can still send
           someone a link. You can sign in later without losing any of it.
         </p>
+
+        {signInFailed && (
+          <div className="gate-error gate-error-block">
+            <span className="row-between" style={{ gap: 7 }}>
+              <Warn size={14} />
+              <b style={{ flex: 1 }}>Google sent you back, but the sign-in did not complete.</b>
+            </span>
+            <span className="gate-error-detail">
+              Almost always the redirect allow-list. In Supabase under{' '}
+              <b>Authentication → URL Configuration</b>, the <b>Site URL</b> should be{' '}
+              <code>{origin}</code> and <code>{origin}/auth/callback</code> should be one of the{' '}
+              <b>Redirect URLs</b>. A new project defaults to localhost, which is why it lands
+              there instead.
+            </span>
+          </div>
+        )}
 
         {error && (
           <p className="gate-error">

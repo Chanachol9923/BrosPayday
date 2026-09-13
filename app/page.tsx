@@ -126,6 +126,7 @@ export default function Page() {
   const [shareMode, setShareMode] = useState<{ token: string; role: 'view' | 'edit' } | null>(null);
   const [shareLoading, setShareLoading] = useState(false);
   const [cloudLinks, setCloudLinks] = useState<ShareLink[]>([]);
+  const [signInFailed, setSignInFailed] = useState(false);
   const sharedBase = useRef<Party | null>(null);
   const didLoad = useRef(false);
 
@@ -148,7 +149,15 @@ export default function Page() {
       setIncoming(shared);
     }
 
-    const token = new URLSearchParams(window.location.search).get('s');
+    // Sign-in can only fail on the way back, and the usual cause is the redirect
+    // allow-list. Saying so beats a blank screen and a shrug.
+    const search = new URLSearchParams(window.location.search);
+    if (search.get('signin') === 'failed') {
+      history.replaceState(null, '', window.location.pathname);
+      setSignInFailed(true);
+    }
+
+    const token = search.get('s');
     if (token && cloudConfigured) {
       setShareLoading(true);
       setLoaded(true);
@@ -728,7 +737,12 @@ export default function Page() {
     return (
       <CloudGate
         error={cloud.error}
-        onSignIn={() => void cloud.signIn()}
+        signInFailed={signInFailed}
+        origin={typeof window === 'undefined' ? '' : window.location.origin}
+        onSignIn={() => {
+          setSignInFailed(false);
+          void cloud.signIn();
+        }}
         onStayLocal={chooseLocal}
       />
     );

@@ -1575,3 +1575,20 @@ table.grid .cellname { display: flex; align-items: center; gap: 7px; }
 
 /* ── account sheet ──────────────────────────────────────────────── */
 .account-head { display: flex; align-items: center; gap: 12px; }
+
+.gate-error-block { display: block; text-align: left; }
+.gate-error-block .gate-error-detail {
+  display: block;
+  margin-top: 7px;
+  color: var(--text-dim);
+  line-height: 1.55;
+}
+.gate-error-block code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+  padding: 1px 5px;
+  border-radius: 5px;
+  background: rgb(0 0 0 / 0.3);
+  color: var(--text);
+  word-break: break-all;
+}

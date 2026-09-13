@@ -16,6 +16,7 @@ const {
 } = require('../.verify/share.js');
 const {
   applyPreset, archiveCurrent, deleteFromHistory, emptyStore, newParty,
+  DEFAULT_PROFILE_NAME, withDefaultProfileName,
   presetFromParty, referencedPhotoIds, reopenFromHistory,
   setPayee, payeeFor, hasPaymentDetails, addPhotoMeta, updateCurrent,
 } = require('../.verify/store.js');
@@ -467,6 +468,39 @@ section('share links — round trip');
   }
 }
 
+
+
+section('the profile chip — who is running this event');
+{
+  emptyStore().profiles[0].name === DEFAULT_PROFILE_NAME && DEFAULT_PROFILE_NAME === 'Event Host'
+    ? ok('a fresh device starts as “Event Host”, not “Me”')
+    : fail(`a new store named its profile ${emptyStore().profiles[0].name}`);
+
+  const P = (...names) => names.map((name, i) => ({ id: `p${i}`, name, createdAt: i }));
+
+  withDefaultProfileName(P('Me'))[0].name === DEFAULT_PROFILE_NAME
+    ? ok('a device still on the old default is brought over')
+    : fail('the old default was left behind');
+
+  const renamed = P('Somchai');
+  withDefaultProfileName(renamed) === renamed
+    ? ok('a profile somebody actually named is not touched, nor its array rebuilt')
+    : fail('a named profile was rewritten');
+
+  const second = withDefaultProfileName(P('Somchai', 'Me'));
+  second[1].name === 'Me' && second[0].name === 'Somchai'
+    ? ok('a second profile someone deliberately called “Me” keeps its name')
+    : fail(`later profiles were rewritten: ${JSON.stringify(second.map((p) => p.name))}`);
+
+  const both = withDefaultProfileName(P('Me', 'Me'));
+  both[0].name === DEFAULT_PROFILE_NAME && both[1].name === 'Me'
+    ? ok('only the first one is the default — the rest are somebody’s choice')
+    : fail(`renaming reached too far: ${JSON.stringify(both.map((p) => p.name))}`);
+
+  withDefaultProfileName([]).length === 0
+    ? ok('an empty list is left alone rather than crashed on')
+    : fail('renaming broke on an empty list');
+}
 
 section('event codes — one link, described twice');
 {

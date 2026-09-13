@@ -72,8 +72,26 @@ export function partyLabel(p: Party): string {
 
 /* ── store ───────────────────────────────────────────────────────── */
 
+/**
+ * What the first profile on a device is called before anyone renames it. Whoever
+ * opens the app is the one running the event and collecting from everyone else,
+ * so the chip in the corner may as well say so.
+ */
+export const DEFAULT_PROFILE_NAME = 'Event Host';
+
+/**
+ * The first profile used to be called "Me". Renaming it is safe — a profile name
+ * is a label on this device and nothing is keyed by it — and only the untouched
+ * default is touched: a profile somebody actually named, "Me" included on any but
+ * the first, is left exactly alone.
+ */
+export function withDefaultProfileName(profiles: Profile[]): Profile[] {
+  if (profiles[0]?.name !== 'Me') return profiles;
+  return profiles.map((p, i) => (i === 0 ? { ...p, name: DEFAULT_PROFILE_NAME } : p));
+}
+
 export function emptyStore(): Store {
-  const profile: Profile = { id: uid(), name: 'Me', createdAt: Date.now() };
+  const profile: Profile = { id: uid(), name: DEFAULT_PROFILE_NAME, createdAt: Date.now() };
   return {
     version: 2,
     profiles: [profile],
@@ -89,6 +107,8 @@ function coerce(raw: unknown): Store | null {
   const s = raw as Store;
   if (!s || s.version !== 2 || !Array.isArray(s.profiles) || s.profiles.length === 0) return null;
   if (!s.profiles.some((p) => p.id === s.activeProfileId)) s.activeProfileId = s.profiles[0].id;
+
+  s.profiles = withDefaultProfileName(s.profiles);
 
   s.current = s.current ?? {};
   s.history = s.history ?? {};
@@ -439,7 +459,7 @@ export function placeholderStore(): Store {
   };
   return {
     version: 2,
-    profiles: [{ id: pid, name: 'Me', createdAt: 0 }],
+    profiles: [{ id: pid, name: DEFAULT_PROFILE_NAME, createdAt: 0 }],
     activeProfileId: pid,
     current: { [pid]: party },
     history: { [pid]: [] },
